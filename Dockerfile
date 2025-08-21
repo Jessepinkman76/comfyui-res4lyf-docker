@@ -11,11 +11,24 @@ RUN apt-get update && apt-get install -y \
 RUN python3 -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
-# Clone et installe RES4LYF
+# Clone RES4LYF et vérifie la structure
 WORKDIR /comfyui/custom_nodes
 RUN git clone https://github.com/ClownsharkBatwing/RES4LYF.git && \
     cd RES4LYF && \
-    /opt/venv/bin/pip install -r requirements.txt
+    ls -la && \
+    # Vérifie si le dossier beta existe
+    if [ ! -d "beta" ]; then echo "ERROR: beta directory missing"; exit 1; fi && \
+    # Vérifie si constants.py existe dans beta
+    if [ ! -f "beta/constants.py" ]; then echo "ERROR: beta/constants.py missing"; exit 1; fi && \
+    # Vérifie les permissions
+    chmod -R 755 . && \
+    # Installe les dépendances si requirements.txt existe
+    if [ -f "requirements.txt" ]; then \
+        /opt/venv/bin/pip install -r requirements.txt; \
+    else \
+        echo "No requirements.txt found, installing common dependencies"; \
+        /opt/venv/bin/pip install torch torchvision numpy pillow opencv-python; \
+    fi
 
 # Installe les dépendances avec résolution des conflits
 RUN /opt/venv/bin/pip install \
