@@ -1,24 +1,33 @@
-FROM timpietruskyblibla/runpod-worker-comfy:3.6.0-base
+FROM runpod/worker-comfyui:latest
 
-# Install système dependencies including curl
-RUN apt-get update && apt-get install -y \
-    curl \
-    wget \
-    git \
-    build-essential \
-    && rm -rf /var/lib/apt/lists/*
+# Install curl (the only missing dependency)
+RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
 
-# Create RES4LYF installation directory and clone the CORRECT repository
+# Install RES4LYF custom node
 RUN cd /comfyui/custom_nodes && \
     git clone https://github.com/ClownsharkBatwing/RES4LYF.git && \
     cd RES4LYF && \
-    /opt/venv/bin/pip install -r requirements.txt
+    pip install -r requirements.txt
 
-# Create configuration file for RES4LYF
-RUN echo "COMFYUI_IGNORE_UPCAST_ATTENTION=true" > /comfyui/custom_nodes/RES4LYF/.env
+# Copy your custom models if needed
+# COPY ./models /comfyui/models
 
-# Return to working directory
-WORKDIR /comfyui
+# Set up extra_model_paths.yaml for network volume
+RUN echo 'comfyui:' > /comfyui/extra_model_paths.yaml && \
+    echo '  base_path: /runpod-volume/ComfyUI/' >> /comfyui/extra_model_paths.yaml && \
+    echo '  is_default: true' >> /comfyui/extra_model_paths.yaml && \
+    echo '  text_encoders: models/text_encoders/' >> /comfyui/extra_model_paths.yaml && \
+    echo '  vae: models/vae/' >> /comfyui/extra_model_paths.yaml && \
+    echo '  diffusion_models: |' >> /comfyui/extra_model_paths.yaml && \
+    echo '    models/diffusion_models' >> /comfyui/extra_model_paths.yaml && \
+    echo '    models/unet' >> /comfyui/extra_model_paths.yaml && \
+    echo '  checkpoints: models/checkpoints/' >> /comfyui/extra_model_paths.yaml && \
+    echo '  clip: models/clip/' >> /comfyui/extra_model_paths.yaml && \
+    echo '  loras: models/loras/' >> /comfyui/extra_model_paths.yaml && \
+    echo '  embeddings: models/embeddings/' >> /comfyui/extra_model_paths.yaml && \
+    echo '  upscale_models: models/upscale_models/' >> /comfyui/extra_model_paths.yaml
 
-# Ensure all permissions are correct
-RUN chown -R root:root /comfyui/custom_nodes/RES4LYF
+# Copy your handler.py if you have custom logic
+COPY handler.py /handler.py
+
+ENV HANDLER_FUNCTION=handler
