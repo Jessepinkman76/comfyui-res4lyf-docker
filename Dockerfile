@@ -1,4 +1,4 @@
-FROM runpod/worker-comfy:latest
+FROM timpietruskyblibla/runpod-worker-comfy:3.6.0-base
 
 # Cloner RES4LYF
 RUN cd /comfyui/custom_nodes && git clone https://github.com/ClownsharkBatwing/RES4LYF.git
