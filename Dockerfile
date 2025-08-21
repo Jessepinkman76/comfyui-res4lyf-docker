@@ -3,12 +3,15 @@ FROM timpietruskyblibla/runpod-worker-comfy:3.6.0-base
 # Utiliser le même environnement virtuel que l'image de base
 ENV PATH="/opt/venv/bin:${PATH}"
 
-# Installer git si nécessaire
+# Installer git
 RUN apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/*
 
-# Mettre à jour ComfyUI vers la dernière version
-WORKDIR /comfyui
-RUN git fetch origin && git checkout main && git pull origin main
+# Installer comfy-cli
+RUN pip install comfy-cli
+
+# Réinstaller ComfyUI avec la dernière version
+RUN rm -rf /comfyui
+RUN comfy --workspace /comfyui install --nvidia
 
 # Cloner RES4LYF
 WORKDIR /comfyui/custom_nodes
