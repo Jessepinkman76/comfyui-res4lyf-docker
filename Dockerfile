@@ -12,7 +12,7 @@ RUN apt-get update && apt-get install -y \
 WORKDIR /comfyui/custom_nodes
 
 # Clone RES4LYF repository
-RUN git clone https://github.com/willwong123/RES4LYF
+RUN git clone --depth=1 https://github.com/willwong123/RES4LYF.git
 
 # Install RES4LYF dependencies
 WORKDIR /comfyui/custom_nodes/RES4LYF
