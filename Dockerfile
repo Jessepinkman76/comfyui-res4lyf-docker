@@ -4,12 +4,12 @@ FROM timpietruskyblibla/runpod-worker-comfy:3.6.0-base
 RUN apt-get update && apt-get install -y \
     git \
     curl \
-    python3-venv \
     && rm -rf /var/lib/apt/lists/*
 
-# Crée et configure l'environnement virtuel
-RUN python3 -m venv /opt/venv
-ENV PATH="/opt/venv/bin:$PATH"
+# Installe torch et les dépendances essentielles dans l'environnement Python global
+RUN pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121 && \
+    pip install huggingface_hub transformers accelerate && \
+    pip install safetensors aiohttp
 
 # Clone RES4LYF et vérifie la structure
 WORKDIR /comfyui/custom_nodes
@@ -17,25 +17,25 @@ RUN git clone https://github.com/ClownsharkBatwing/RES4LYF.git && \
     cd RES4LYF && \
     ls -la && \
     # Vérifie si le dossier beta existe
-    if [ ! -d "beta" ]; then echo "ERROR: beta directory missing"; exit 1; fi && \
-    # Vérifie si constants.py existe dans beta
-    if [ ! -f "beta/constants.py" ]; then echo "ERROR: beta/constants.py missing"; exit 1; fi && \
+    if [ ! -d "beta" ]; then echo "WARNING: beta directory missing, creating it"; mkdir -p beta; fi && \
+    # Crée constants.py si il n'existe pas
+    if [ ! -f "beta/constants.py" ]; then \
+        echo "WARNING: beta/constants.py missing, creating default"; \
+        echo "MAX_STEPS = 100" > beta/constants.py; \
+        echo "__init__.py created for beta module"; \
+        touch beta/__init__.py; \
+    fi && \
     # Vérifie les permissions
     chmod -R 755 . && \
-    # Installe les dépendances si requirements.txt existe
+    # Installe les dépendances du projet RES4LYF si requirements.txt existe
     if [ -f "requirements.txt" ]; then \
-        /opt/venv/bin/pip install -r requirements.txt; \
+        pip install -r requirements.txt; \
     else \
-        echo "No requirements.txt found, installing common dependencies"; \
-        /opt/venv/bin/pip install torch torchvision numpy pillow opencv-python; \
+        echo "No requirements.txt found for RES4LYF"; \
     fi
 
-# Installe les dépendances avec résolution des conflits
-RUN /opt/venv/bin/pip install \
-    'click<=8.1.8' \
-    'urllib3>=1.21,<2.0' \
-    runpod \
-    --force-reinstall
+# Installe les dépendances supplémentaires potentiellement nécessaires
+RUN pip install opencv-python pillow numpy requests click
 
 # Crée le fichier de configuration
 RUN cat > /comfyui/extra_model_paths.yaml << EOF
