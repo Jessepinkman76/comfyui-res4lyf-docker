@@ -8,7 +8,7 @@ on:
 
 env:
   REGISTRY: docker.io
-  IMAGE_NAME: votre-username/comfyui-res4lyf
+  IMAGE_NAME: jessepinkman76/comfyui-res4lyf
 
 jobs:
   build:
