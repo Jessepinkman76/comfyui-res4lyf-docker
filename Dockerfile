@@ -38,10 +38,6 @@ RUN pip install --no-cache-dir \
 WORKDIR /comfyui/custom_nodes
 RUN git clone https://github.com/ClownsharkBatwing/RES4LYF.git
 
-# Créer la structure de répertoires manquante pour comfy.ldm.hidream
-RUN mkdir -p /comfyui/comfy/ldm && \
-    cp -r /comfyui/custom_nodes/RES4LYF/comfy/ldm/hidream /comfyui/comfy/ldm/
-
 # Configuration pour pointer vers les modèles du volume réseau
 RUN mkdir -p /comfyui && cat > /comfyui/extra_model_paths.yaml << EOF
 comfyui:
@@ -60,8 +56,16 @@ EOF
 RUN mkdir -p /app/custom_nodes && \
     ln -sf /comfyui/custom_nodes/RES4LYF /app/custom_nodes/RES4LYF
 
-# Copier le handler.py depuis l'image de base
-RUN cp /app/handler.py /handler.py || echo "Handler.py non trouvé dans /app, utilisation alternative"
+# Vérifier la structure de RES4LYF et créer les répertoires manquants si nécessaire
+RUN if [ -d "/comfyui/custom_nodes/RES4LYF/comfy" ]; then \
+    echo "Copie de la structure comfy de RES4LYF..."; \
+    mkdir -p /comfyui/comfy; \
+    cp -r /comfyui/custom_nodes/RES4LYF/comfy/* /comfyui/comfy/; \
+else \
+    echo "Structure comfy non trouvée dans RES4LYF, création manuelle..."; \
+    mkdir -p /comfyui/comfy/ldm/hidream; \
+    touch /comfyui/comfy/ldm/hidream/__init__.py; \
+fi
 
 # Point d'entrée
-CMD ["bash", "-c", "python -u /handler.py"]
+CMD ["bash", "-c", "python -u /app/handler.py"]
