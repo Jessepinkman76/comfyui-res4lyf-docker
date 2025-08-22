@@ -63,27 +63,33 @@ EOF
 RUN mkdir -p /app/custom_nodes && \
     ln -sf /comfyui/custom_nodes/RES4LYF /app/custom_nodes/RES4LYF
 
-# Solution définitive pour RES4LYF - créer la structure de répertoires attendue
-RUN mkdir -p /comfyui/comfy/ldm/hidream
+# Solution complète pour RES4LYF - copier tous les fichiers nécessaires
+RUN mkdir -p /comfyui/comfy/ldm/hidream && \
+    mkdir -p /comfyui/comfy/ldm
 
-# Copier le fichier model.py depuis la racine de RES4LYF vers la structure comfy
-RUN if [ -f "/comfyui/custom_nodes/RES4LYF/model.py" ]; then \
-    echo "Copie du fichier model.py depuis la racine de RES4LYF..."; \
-    cp /comfyui/custom_nodes/RES4LYF/model.py /comfyui/comfy/ldm/hidream/; \
-else \
-    echo "Recherche du fichier model.py..."; \
-    find /comfyui/custom_nodes/RES4LYF -name "model.py" -exec cp {} /comfyui/comfy/ldm/hidream/ \; 2>/dev/null || echo "Fichier model.py non trouvé"; \
-fi
+# Copier tous les fichiers nécessaires depuis RES4LYF
+RUN echo "Copie de tous les fichiers nécessaires depuis RES4LYF..." && \
+    # Copier model.py
+    if [ -f "/comfyui/custom_nodes/RES4LYF/model.py" ]; then \
+        cp /comfyui/custom_nodes/RES4LYF/model.py /comfyui/comfy/ldm/hidream/; \
+    fi && \
+    # Copier helper.py
+    if [ -f "/comfyui/custom_nodes/RES4LYF/helper.py" ]; then \
+        cp /comfyui/custom_nodes/RES4LYF/helper.py /comfyui/comfy/ldm/; \
+    fi && \
+    # Copier tous les autres fichiers Python de la racine
+    find /comfyui/custom_nodes/RES4LYF -maxdepth 1 -name "*.py" -exec cp {} /comfyui/comfy/ldm/ \; 2>/dev/null || true
 
-# Créer un fichier __init__.py pour que Python reconnaisse le répertoire comme module
-RUN touch /comfyui/comfy/ldm/hidream/__init__.py
+# Créer les fichiers __init__.py nécessaires
+RUN touch /comfyui/comfy/ldm/__init__.py && \
+    touch /comfyui/comfy/ldm/hidream/__init__.py
 
 # Vérification de la structure
 RUN echo "=== Structure RES4LYF ===" && \
     ls -la /comfyui/custom_nodes/RES4LYF/ && \
-    echo "=== Structure comfy ===" && \
-    find /comfyui/comfy -name "hidream" -type d && \
-    echo "=== Contenu de hidream ===" && \
+    echo "=== Structure comfy/ldm ===" && \
+    ls -la /comfyui/comfy/ldm/ && \
+    echo "=== Structure comfy/ldm/hidream ===" && \
     ls -la /comfyui/comfy/ldm/hidream/
 
 # Vérifier et copier le handler depuis l'image de base
