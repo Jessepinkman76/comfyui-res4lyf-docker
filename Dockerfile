@@ -15,7 +15,7 @@ RUN apt-get update && apt-get install -y \
     libssl-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Installer toutes les dépendances Python manquantes identifiées dans les logs
+# Installer toutes les dépendances Python critiques dans l'environnement de base
 RUN pip install --no-cache-dir \
     PyWavelets \
     numpy \
@@ -37,11 +37,6 @@ RUN pip install --no-cache-dir \
 # Cloner RES4LYF manuellement
 WORKDIR /comfyui/custom_nodes
 RUN git clone https://github.com/ClownsharkBatwing/RES4LYF.git
-
-# Installer les dépendances spécifiques de RES4LYF
-RUN if [ -f /comfyui/custom_nodes/RES4LYF/requirements.txt ]; then \
-    pip install --no-cache-dir -r /comfyui/custom_nodes/RES4LYF/requirements.txt; \
-fi
 
 # Configuration du network volume
 RUN mkdir -p /comfyui && cat > /comfyui/extra_model_paths.yaml << EOF
