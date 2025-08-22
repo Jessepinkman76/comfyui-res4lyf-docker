@@ -63,26 +63,27 @@ EOF
 RUN mkdir -p /app/custom_nodes && \
     ln -sf /comfyui/custom_nodes/RES4LYF /app/custom_nodes/RES4LYF
 
-# Solution complète pour RES4LYF - copier tous les fichiers nécessaires
-RUN mkdir -p /comfyui/comfy/ldm/hidream && \
-    mkdir -p /comfyui/comfy/ldm
+# Solution pour RES4LYF - copier uniquement les fichiers nécessaires
+RUN mkdir -p /comfyui/comfy/ldm/hidream
 
-# Copier tous les fichiers nécessaires depuis RES4LYF
-RUN echo "Copie de tous les fichiers nécessaires depuis RES4LYF..." && \
-    # Copier model.py
-    if [ -f "/comfyui/custom_nodes/RES4LYF/model.py" ]; then \
-        cp /comfyui/custom_nodes/RES4LYF/model.py /comfyui/comfy/ldm/hidream/; \
-    fi && \
-    # Copier helper.py
-    if [ -f "/comfyui/custom_nodes/RES4LYF/helper.py" ]; then \
-        cp /comfyui/custom_nodes/RES4LYF/helper.py /comfyui/comfy/ldm/; \
-    fi && \
-    # Copier tous les autres fichiers Python de la racine
-    find /comfyui/custom_nodes/RES4LYF -maxdepth 1 -name "*.py" -exec cp {} /comfyui/comfy/ldm/ \; 2>/dev/null || true
+# Copier uniquement les fichiers strictement nécessaires
+RUN if [ -f "/comfyui/custom_nodes/RES4LYF/model.py" ]; then \
+    echo "Copie du fichier model.py..."; \
+    cp /comfyui/custom_nodes/RES4LYF/model.py /comfyui/comfy/ldm/hidream/; \
+fi
 
+RUN if [ -f "/comfyui/custom_nodes/RES4LYF/helper.py" ]; then \
+    echo "Copie du fichier helper.py..."; \
+    cp /comfyui/custom_nodes/RES4LYF/helper.py /comfyui/comfy/ldm/; \
+fi
+
+# NE PAS copier res4lyf.py qui cause l'erreur PromptServer
 # Créer les fichiers __init__.py nécessaires
 RUN touch /comfyui/comfy/ldm/__init__.py && \
     touch /comfyui/comfy/ldm/hidream/__init__.py
+
+# Supprimer le fichier res4lyf.py s'il a été copié par erreur
+RUN rm -f /comfyui/comfy/ldm/res4lyf.py 2>/dev/null || true
 
 # Vérification de la structure
 RUN echo "=== Structure RES4LYF ===" && \
