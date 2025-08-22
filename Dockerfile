@@ -63,29 +63,25 @@ EOF
 RUN mkdir -p /app/custom_nodes && \
     ln -sf /comfyui/custom_nodes/RES4LYF /app/custom_nodes/RES4LYF
 
-# Solution définitive pour le problème d'importation RES4LYF
-# Créer la structure de répertoires attendue par ComfyUI
+# Solution définitive pour RES4LYF - créer la structure de répertoires attendue
 RUN mkdir -p /comfyui/comfy/ldm/hidream
 
-# Copier les fichiers nécessaires depuis RES4LYF vers la structure comfy standard
-RUN if [ -f "/comfyui/custom_nodes/RES4LYF/hidream/model.py" ]; then \
-    echo "Copie des fichiers hidream depuis RES4LYF..."; \
-    cp /comfyui/custom_nodes/RES4LYF/hidream/model.py /comfyui/comfy/ldm/hidream/; \
-    # Copier également les autres fichiers nécessaires du répertoire hidream
-    cp /comfyui/custom_nodes/RES4LYF/hidream/*.py /comfyui/comfy/ldm/hidream/ 2>/dev/null || true; \
+# Copier le fichier model.py depuis la racine de RES4LYF vers la structure comfy
+RUN if [ -f "/comfyui/custom_nodes/RES4LYF/model.py" ]; then \
+    echo "Copie du fichier model.py depuis la racine de RES4LYF..."; \
+    cp /comfyui/custom_nodes/RES4LYF/model.py /comfyui/comfy/ldm/hidream/; \
 else \
-    echo "Avertissement: Fichier model.py non trouvé dans RES4LYF/hidream/"; \
-    # Vérifier s'il existe dans un autre emplacement
-    find /comfyui/custom_nodes/RES4LYF -name "model.py" -exec echo "Trouvé à: {}" \; 2>/dev/null; \
+    echo "Recherche du fichier model.py..."; \
+    find /comfyui/custom_nodes/RES4LYF -name "model.py" -exec cp {} /comfyui/comfy/ldm/hidream/ \; 2>/dev/null || echo "Fichier model.py non trouvé"; \
 fi
 
 # Créer un fichier __init__.py pour que Python reconnaisse le répertoire comme module
 RUN touch /comfyui/comfy/ldm/hidream/__init__.py
 
 # Vérification de la structure
-RUN echo "=== Vérification de la structure RES4LYF ===" && \
-    find /comfyui/custom_nodes/RES4LYF -name "*.py" | head -10 && \
-    echo "=== Vérification de la structure comfy ===" && \
+RUN echo "=== Structure RES4LYF ===" && \
+    ls -la /comfyui/custom_nodes/RES4LYF/ && \
+    echo "=== Structure comfy ===" && \
     find /comfyui/comfy -name "hidream" -type d && \
     echo "=== Contenu de hidream ===" && \
     ls -la /comfyui/comfy/ldm/hidream/
