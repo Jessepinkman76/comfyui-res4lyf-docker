@@ -15,7 +15,7 @@ RUN apt-get update && apt-get install -y \
     libssl-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Installer toutes les dépendances Python critiques
+# Installer TOUTES les dépendances nécessaires pour RES4LYF et les custom nodes
 RUN pip install --no-cache-dir \
     PyWavelets \
     numpy \
@@ -34,11 +34,14 @@ RUN pip install --no-cache-dir \
     accelerate \
     safetensors
 
-# Cloner RES4LYF
+# Cloner RES4LYF dans l'image Docker
 WORKDIR /comfyui/custom_nodes
 RUN git clone https://github.com/ClownsharkBatwing/RES4LYF.git
 
-# Configuration du network volume
+# Installer les dépendances spécifiques de RES4LYF depuis son requirements.txt
+RUN pip install --no-cache-dir -r /comfyui/custom_nodes/RES4LYF/requirements.txt
+
+# Configuration pour pointer vers les modèles du volume réseau
 RUN mkdir -p /comfyui && cat > /comfyui/extra_model_paths.yaml << EOF
 comfyui:
   base_path: /runpod-volume/ComfyUI/
@@ -52,16 +55,9 @@ comfyui:
   clip: models/clip/
 EOF
 
-# Créer le script wrapper
-RUN echo '#!/bin/bash' > /wrapper.sh && \
-    echo 'if [ -f /runpod-volume/ComfyUI/venv/bin/activate ]; then' >> /wrapper.sh && \
-    echo '    source /runpod-volume/ComfyUI/venv/bin/activate' >> /wrapper.sh && \
-    echo '    echo "[WRAPPER] Environnement ComfyUI activé"' >> /wrapper.sh && \
-    echo 'else' >> /wrapper.sh && \
-    echo '    echo "[WRAPPER] Utilisation de l'\''environnement de base"' >> /wrapper.sh && \
-    echo 'fi' >> /wrapper.sh && \
-    echo 'exec "$@"' >> /wrapper.sh && \
-    chmod +x /wrapper.sh
+# Créer des liens symboliques pour que ComfyUI trouve RES4LYF
+RUN mkdir -p /app/custom_nodes && \
+    ln -sf /comfyui/custom_nodes/RES4LYF /app/custom_nodes/RES4LYF
 
-# Définir le wrapper comme entrypoint
-ENTRYPOINT ["/wrapper.sh"]
+# Point d'entrée simplifié
+CMD ["bash", "-c", "python /handler.py"]
