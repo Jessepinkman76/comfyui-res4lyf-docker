@@ -62,44 +62,96 @@ EOF
 RUN mkdir -p /app/custom_nodes && \
     ln -sf /comfyui/custom_nodes/RES4LYF /app/custom_nodes/RES4LYF
 
-# Nettoyer les fichiers problématiques qui pourraient avoir été copiés précédemment
-RUN rm -rf /comfyui/comfy/ldm/res4lyf.py /comfyui/comfy/ldm/hidream 2>/dev/null || true
-
-# Solution complète: Organiser correctement les fichiers RES4LYF
+# Solution: Organiser correctement les fichiers RES4LYF
 RUN echo "Organisation des fichiers RES4LYF..." && \
-    # Créer le dossier hidream s'il n'existe pas
-    mkdir -p /comfyui/custom_nodes/RES4LYF/hidream && \
-    # Déplacer model.py dans hidream s'il est à la racine
+    # Vérifier la structure de RES4LYF
+    echo "=== Structure avant organisation ===" && \
+    ls -la /comfyui/custom_nodes/RES4LYF/ && \
+    # Déplacer les fichiers si nécessaire
     if [ -f "/comfyui/custom_nodes/RES4LYF/model.py" ]; then \
+        mkdir -p /comfyui/custom_nodes/RES4LYF/hidream && \
         mv /comfyui/custom_nodes/RES4LYF/model.py /comfyui/custom_nodes/RES4LYF/hidream/; \
     fi && \
-    # Déplacer helper.py dans hidream s'il est à la racine
     if [ -f "/comfyui/custom_nodes/RES4LYF/helper.py" ]; then \
+        mkdir -p /comfyui/custom_nodes/RES4LYF/hidream && \
         mv /comfyui/custom_nodes/RES4LYF/helper.py /comfyui/custom_nodes/RES4LYF/hidream/; \
     fi && \
     # Créer les __init__.py nécessaires
     touch /comfyui/custom_nodes/RES4LYF/hidream/__init__.py && \
-    # Corriger les imports dans model.py
+    # Corriger les imports
     if [ -f "/comfyui/custom_nodes/RES4LYF/hidream/model.py" ]; then \
         sed -i 's/from ..helper/from .helper/g' /comfyui/custom_nodes/RES4LYF/hidream/model.py; \
     fi && \
-    # Corriger les imports dans models.py
     if [ -f "/comfyui/custom_nodes/RES4LYF/models.py" ]; then \
         sed -i 's/from comfy.ldm.hidream.model/from hidream.model/g' /comfyui/custom_nodes/RES4LYF/models.py; \
-        sed -i 's/from hidream.model/from .hidream.model/g' /comfyui/custom_nodes/RES4LYF/models.py; \
     fi
 
-# Vérification de la structure et des corrections
+# Créer un script de démarrage simplifié
+RUN echo '#!/bin/bash' > /start.sh && \
+    echo 'echo "Démarrage du conteneur..."' >> /start.sh && \
+    echo '' >> /start.sh && \
+    echo '# Nettoyer les fichiers résiduels problématiques' >> /start.sh && \
+    echo 'rm -f /comfyui/comfy/ldm/res4lyf.py 2>/dev/null || true' >> /start.sh && \
+    echo 'rm -rf /comfyui/comfy/ldm/hidream 2>/dev/null || true' >> /start.sh && \
+    echo '' >> /start.sh && \
+    echo '# Attendre le volume réseau avec timeout' >> /start.sh && \
+    echo 'echo "Attente du volume réseau..."' >> /start.sh && \
+    echo 'timeout=60' >> /start.sh && \
+    echo 'while [ ! -d /runpod-volume/ComfyUI ] && [ $timeout -gt 0 ]; do' >> /start.sh && \
+    echo '    sleep 2' >> /start.sh && \
+    echo '    timeout=$((timeout-2))' >> /start.sh && \
+    echo 'done' >> /start.sh && \
+    echo '' >> /start.sh && \
+    echo 'if [ ! -d /runpod-volume/ComfyUI ]; then' >> /start.sh && \
+    echo '    echo "Avertissement: Volume réseau non trouvé après 60 secondes"' >> /start.sh && \
+    echo 'else' >> /start.sh && \
+    echo '    echo "Volume réseau trouvé"' >> /start.sh && \
+    echo 'fi' >> /start.sh && \
+    echo '' >> /start.sh && \
+    echo '# Configurer le PYTHONPATH' >> /start.sh && \
+    echo 'export PYTHONPATH="/comfyui:/comfyui/custom_nodes/RES4LYF:/comfyui/custom_nodes/RES4LYF/hidream:$PYTHONPATH"' >> /start.sh && \
+    echo '' >> /start.sh && \
+    echo '# Démarrer ComfyUI' >> /start.sh && \
+    echo 'cd /comfyui' >> /start.sh && \
+    echo 'python main.py --fast --listen --port 8188 &' >> /start.sh && \
+    echo '' >> /start.sh && \
+    echo '# Attendre que le serveur soit prêt' >> /start.sh && \
+    echo 'echo "Attente du démarrage de ComfyUI..."' >> /start.sh && \
+    echo 'timeout=30' >> /start.sh && \
+    echo 'while ! curl -s http://127.0.0.1:8188 >/dev/null && [ $timeout -gt 0 ]; do' >> /start.sh && \
+    echo '    sleep 1' >> /start.sh && \
+    echo '    timeout=$((timeout-1))' >> /start.sh && \
+    echo 'done' >> /start.sh && \
+    echo '' >> /start.sh && \
+    echo 'if [ $timeout -eq 0 ]; then' >> /start.sh && \
+    echo '    echo "Avertissement: Timeout lors de l\'attente de ComfyUI"' >> /start.sh && \
+    echo 'else' >> /start.sh && \
+    echo '    echo "ComfyUI est démarré"' >> /start.sh && \
+    echo 'fi' >> /start.sh && \
+    echo '' >> /start.sh && \
+    echo '# Trouver et exécuter le handler' >> /start.sh && \
+    echo 'HANDLER_PATH=$(find / -name "handler.py" -type f 2>/dev/null | head -1)' >> /start.sh && \
+    echo 'if [ -z "$HANDLER_PATH" ]; then' >> /start.sh && \
+    echo '    echo "Utilisation du handler par défaut: /app/handler.py"' >> /start.sh && \
+    echo '    HANDLER_PATH="/app/handler.py"' >> /start.sh && \
+    echo 'else' >> /start.sh && \
+    echo '    echo "Handler trouvé: $HANDLER_PATH"' >> /start.sh && \
+    echo 'fi' >> /start.sh && \
+    echo '' >> /start.sh && \
+    echo 'exec python -u "$HANDLER_PATH"' >> /start.sh && \
+    chmod +x /start.sh
+
+# Vérification de la structure
 RUN echo "=== Structure RES4LYF ===" && \
     ls -la /comfyui/custom_nodes/RES4LYF/ && \
     echo "=== Contenu du dossier hidream ===" && \
     ls -la /comfyui/custom_nodes/RES4LYF/hidream/ && \
     echo "=== Vérification des corrections ===" && \
     if [ -f "/comfyui/custom_nodes/RES4LYF/models.py" ]; then \
-        grep -n "from.*hidream" /comfyui/custom_nodes/RES4LYF/models.py; \
+        grep -n "from.*hidream" /comfyui/custom_nodes/RES4LYF/models.py || echo "Aucun import hidream trouvé"; \
     fi && \
     if [ -f "/comfyui/custom_nodes/RES4LYF/hidream/model.py" ]; then \
-        grep -n "from.*helper" /comfyui/custom_nodes/RES4LYF/hidream/model.py; \
+        grep -n "from.*helper" /comfyui/custom_nodes/RES4LYF/hidream/model.py || echo "Aucun import helper trouvé"; \
     fi
 
 # Vérifier et copier le handler depuis l'image de base
@@ -118,4 +170,4 @@ else \
 fi
 
 # Point d'entrée
-CMD ["bash", "-c", "python -u /app/handler.py"]
+CMD ["/start.sh"]
