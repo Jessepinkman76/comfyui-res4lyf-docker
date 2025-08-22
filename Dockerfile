@@ -34,11 +34,9 @@ RUN pip install --no-cache-dir \
     accelerate \
     safetensors
 
-# Cloner RES4LYF et ses dépendances
+# Cloner RES4LYF
 WORKDIR /comfyui/custom_nodes
 RUN git clone https://github.com/ClownsharkBatwing/RES4LYF.git
-# Installer HiDream (dépendance de RES4LYF)
-RUN git clone https://github.com/Acly/comfyui-hidream.git HiDream
 
 # Installer les dépendances spécifiques de RES4LYF
 RUN if [ -f /comfyui/custom_nodes/RES4LYF/requirements.txt ]; then \
@@ -61,8 +59,7 @@ EOF
 
 # Créer des liens symboliques pour que ComfyUI trouve les custom nodes
 RUN mkdir -p /app/custom_nodes && \
-    ln -sf /comfyui/custom_nodes/RES4LYF /app/custom_nodes/RES4LYF && \
-    ln -sf /comfyui/custom_nodes/HiDream /app/custom_nodes/HiDream
+    ln -sf /comfyui/custom_nodes/RES4LYF /app/custom_nodes/RES4LYF
 
 # Utiliser le handler.py de l'image de base (ne pas le copier pour éviter les conflits)
 # Le handler.py est déjà présent dans l'image de base à /app/handler.py
