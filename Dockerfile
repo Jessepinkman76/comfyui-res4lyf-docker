@@ -86,6 +86,26 @@ RUN echo "Organisation des fichiers RES4LYF..." && \
         sed -i 's/from comfy.ldm.hidream.model/from hidream.model/g' /comfyui/custom_nodes/RES4LYF/models.py; \
     fi
 
+# Installer le handler ComfyUI pour RunPod
+RUN echo "Téléchargement du handler ComfyUI pour RunPod..." && \
+    curl -o /app/handler.py https://raw.githubusercontent.com/runpod/runpod-worker-comfy/main/comfyui/handler.py && \
+    chmod +x /app/handler.py && \
+    # Installer les dépendances du handler
+    pip install --no-cache-dir runpod
+
+# Vérification de la structure et des corrections
+RUN echo "=== Structure RES4LYF ===" && \
+    ls -la /comfyui/custom_nodes/RES4LYF/ && \
+    echo "=== Contenu du dossier hidream ===" && \
+    ls -la /comfyui/custom_nodes/RES4LYF/hidream/ && \
+    echo "=== Vérification des corrections ===" && \
+    if [ -f "/comfyui/custom_nodes/RES4LYF/models.py" ]; then \
+        grep -n "from.*hidream" /comfyui/custom_nodes/RES4LYF/models.py || echo "Aucun import hidream trouvé"; \
+    fi && \
+    if [ -f "/comfyui/custom_nodes/RES4LYF/hidream/model.py" ]; then \
+        grep -n "from.*helper" /comfyui/custom_nodes/RES4LYF/hidream/model.py || echo "Aucun import helper trouvé"; \
+    fi
+
 # Créer un script de démarrage simplifié
 RUN echo '#!/bin/bash' > /start.sh && \
     echo 'echo "Démarrage du conteneur..."' >> /start.sh && \
@@ -129,45 +149,10 @@ RUN echo '#!/bin/bash' > /start.sh && \
     echo '    echo "ComfyUI est démarré"' >> /start.sh && \
     echo 'fi' >> /start.sh && \
     echo '' >> /start.sh && \
-    echo '# Trouver et exécuter le handler' >> /start.sh && \
-    echo 'HANDLER_PATH=$(find / -name "handler.py" -type f 2>/dev/null | head -1)' >> /start.sh && \
-    echo 'if [ -z "$HANDLER_PATH" ]; then' >> /start.sh && \
-    echo '    echo "Utilisation du handler par défaut: /app/handler.py"' >> /start.sh && \
-    echo '    HANDLER_PATH="/app/handler.py"' >> /start.sh && \
-    echo 'else' >> /start.sh && \
-    echo '    echo "Handler trouvé: $HANDLER_PATH"' >> /start.sh && \
-    echo 'fi' >> /start.sh && \
-    echo '' >> /start.sh && \
-    echo 'exec python -u "$HANDLER_PATH"' >> /start.sh && \
+    echo '# Démarrer le handler RunPod' >> /start.sh && \
+    echo 'echo "Démarrage du handler RunPod..."' >> /start.sh && \
+    echo 'exec python -u /app/handler.py' >> /start.sh && \
     chmod +x /start.sh
-
-# Vérification de la structure
-RUN echo "=== Structure RES4LYF ===" && \
-    ls -la /comfyui/custom_nodes/RES4LYF/ && \
-    echo "=== Contenu du dossier hidream ===" && \
-    ls -la /comfyui/custom_nodes/RES4LYF/hidream/ && \
-    echo "=== Vérification des corrections ===" && \
-    if [ -f "/comfyui/custom_nodes/RES4LYF/models.py" ]; then \
-        grep -n "from.*hidream" /comfyui/custom_nodes/RES4LYF/models.py || echo "Aucun import hidream trouvé"; \
-    fi && \
-    if [ -f "/comfyui/custom_nodes/RES4LYF/hidream/model.py" ]; then \
-        grep -n "from.*helper" /comfyui/custom_nodes/RES4LYF/hidream/model.py || echo "Aucun import helper trouvé"; \
-    fi
-
-# Vérifier et copier le handler depuis l'image de base
-RUN if [ -f "/app/handler.py" ]; then \
-    echo "Handler found in /app"; \
-else \
-    echo "Recherche du handler..."; \
-    HANDLER_PATH=$(find / -name "handler.py" -type f 2>/dev/null | head -1) && \
-    if [ -n "$HANDLER_PATH" ]; then \
-        echo "Handler trouvé à: $HANDLER_PATH"; \
-        mkdir -p /app && \
-        cp "$HANDLER_PATH" /app/; \
-    else \
-        echo "Avertissement: Handler non trouvé"; \
-    fi; \
-fi
 
 # Point d'entrée
 CMD ["/start.sh"]
