@@ -106,53 +106,56 @@ RUN echo "=== Structure RES4LYF ===" && \
         grep -n "from.*helper" /comfyui/custom_nodes/RES4LYF/hidream/model.py || echo "Aucun import helper trouvé"; \
     fi
 
-# Créer un script de démarrage simplifié
-RUN echo '#!/bin/bash' > /start.sh && \
-    echo 'echo "Démarrage du conteneur..."' >> /start.sh && \
-    echo '' >> /start.sh && \
-    echo '# Nettoyer les fichiers résiduels problématiques' >> /start.sh && \
-    echo 'rm -f /comfyui/comfy/ldm/res4lyf.py 2>/dev/null || true' >> /start.sh && \
-    echo 'rm -rf /comfyui/comfy/ldm/hidream 2>/dev/null || true' >> /start.sh && \
-    echo '' >> /start.sh && \
-    echo '# Attendre le volume réseau avec timeout' >> /start.sh && \
-    echo 'echo "Attente du volume réseau..."' >> /start.sh && \
-    echo 'timeout=60' >> /start.sh && \
-    echo 'while [ ! -d /runpod-volume/ComfyUI ] && [ $timeout -gt 0 ]; do' >> /start.sh && \
-    echo '    sleep 2' >> /start.sh && \
-    echo '    timeout=$((timeout-2))' >> /start.sh && \
-    echo 'done' >> /start.sh && \
-    echo '' >> /start.sh && \
-    echo 'if [ ! -d /runpod-volume/ComfyUI ]; then' >> /start.sh && \
-    echo '    echo "Avertissement: Volume réseau non trouvé après 60 secondes"' >> /start.sh && \
-    echo 'else' >> /start.sh && \
-    echo '    echo "Volume réseau trouvé"' >> /start.sh && \
-    echo 'fi' >> /start.sh && \
-    echo '' >> /start.sh && \
-    echo '# Configurer le PYTHONPATH' >> /start.sh && \
-    echo 'export PYTHONPATH="/comfyui:/comfyui/custom_nodes/RES4LYF:/comfyui/custom_nodes/RES4LYF/hidream:$PYTHONPATH"' >> /start.sh && \
-    echo '' >> /start.sh && \
-    echo '# Démarrer ComfyUI' >> /start.sh && \
-    echo 'cd /comfyui' >> /start.sh && \
-    echo 'python main.py --fast --listen --port 8188 &' >> /start.sh && \
-    echo '' >> /start.sh && \
-    echo '# Attendre que le serveur soit prêt' >> /start.sh && \
-    echo 'echo "Attente du démarrage de ComfyUI..."' >> /start.sh && \
-    echo 'timeout=30' >> /start.sh && \
-    echo 'while ! curl -s http://127.0.0.1:8188 >/dev/null && [ $timeout -gt 0 ]; do' >> /start.sh && \
-    echo '    sleep 1' >> /start.sh && \
-    echo '    timeout=$((timeout-1))' >> /start.sh && \
-    echo 'done' >> /start.sh && \
-    echo '' >> /start.sh && \
-    echo 'if [ $timeout -eq 0 ]; then' >> /start.sh && \
-    echo '    echo "Avertissement: Timeout lors de l\'attente de ComfyUI"' >> /start.sh && \
-    echo 'else' >> /start.sh && \
-    echo '    echo "ComfyUI est démarré"' >> /start.sh && \
-    echo 'fi' >> /start.sh && \
-    echo '' >> /start.sh && \
-    echo '# Démarrer le handler RunPod' >> /start.sh && \
-    echo 'echo "Démarrage du handler RunPod..."' >> /start.sh && \
-    echo 'exec python -u /app/handler.py' >> /start.sh && \
-    chmod +x /start.sh
+# Créer un script de démarrage simplifié avec heredoc pour éviter les problèmes d'échappement
+RUN cat > /start.sh << 'EOF'
+#!/bin/bash
+echo "Démarrage du conteneur..."
+
+# Nettoyer les fichiers résiduels problématiques
+rm -f /comfyui/comfy/ldm/res4lyf.py 2>/dev/null || true
+rm -rf /comfyui/comfy/ldm/hidream 2>/dev/null || true
+
+# Attendre le volume réseau avec timeout
+echo "Attente du volume réseau..."
+timeout=60
+while [ ! -d /runpod-volume/ComfyUI ] && [ $timeout -gt 0 ]; do
+    sleep 2
+    timeout=$((timeout-2))
+done
+
+if [ ! -d /runpod-volume/ComfyUI ]; then
+    echo "Avertissement: Volume réseau non trouvé après 60 secondes"
+else
+    echo "Volume réseau trouvé"
+fi
+
+# Configurer le PYTHONPATH
+export PYTHONPATH="/comfyui:/comfyui/custom_nodes/RES4LYF:/comfyui/custom_nodes/RES4LYF/hidream:$PYTHONPATH"
+
+# Démarrer ComfyUI
+cd /comfyui
+python main.py --fast --listen --port 8188 &
+
+# Attendre que le serveur soit prêt
+echo "Attente du démarrage de ComfyUI..."
+timeout=30
+while ! curl -s http://127.0.0.1:8188 >/dev/null && [ $timeout -gt 0 ]; do
+    sleep 1
+    timeout=$((timeout-1))
+done
+
+if [ $timeout -eq 0 ]; then
+    echo "Avertissement: Timeout lors de l'attente de ComfyUI"
+else
+    echo "ComfyUI est démarré"
+fi
+
+# Démarrer le handler RunPod
+echo "Démarrage du handler RunPod..."
+exec python -u /app/handler.py
+EOF
+
+RUN chmod +x /start.sh
 
 # Point d'entrée
 CMD ["/start.sh"]
