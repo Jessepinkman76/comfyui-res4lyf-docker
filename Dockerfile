@@ -15,10 +15,12 @@ RUN apt-get update && apt-get install -y \
     libssl-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Installer TOUTES les dépendances nécessaires
+# Mettre à jour numpy pour résoudre les conflits de version
+RUN pip install --no-cache-dir --upgrade numpy
+
+# Installer les dépendances nécessaires
 RUN pip install --no-cache-dir \
     PyWavelets \
-    numpy \
     scipy \
     pyyaml \
     pyOpenSSL \
@@ -36,14 +38,11 @@ RUN pip install --no-cache-dir \
     einops \
     kornia \
     timm \
-    huggingface_hub \
-    opencv-python
+    huggingface_hub
 
-# Cloner RES4LYF avec la branche correcte
+# Cloner RES4LYF
 WORKDIR /comfyui/custom_nodes
-RUN git clone https://github.com/ClownsharkBatwing/RES4LYF.git && \
-    cd RES4LYF && \
-    git checkout main
+RUN git clone https://github.com/ClownsharkBatwing/RES4LYF.git
 
 # Configuration pour pointer vers les modèles du volume réseau
 RUN mkdir -p /comfyui && cat > /comfyui/extra_model_paths.yaml << EOF
@@ -63,35 +62,20 @@ EOF
 RUN mkdir -p /app/custom_nodes && \
     ln -sf /comfyui/custom_nodes/RES4LYF /app/custom_nodes/RES4LYF
 
-# Solution pour RES4LYF - copier uniquement les fichiers nécessaires
-RUN mkdir -p /comfyui/comfy/ldm/hidream
-
-# Copier uniquement les fichiers strictement nécessaires
-RUN if [ -f "/comfyui/custom_nodes/RES4LYF/model.py" ]; then \
-    echo "Copie du fichier model.py..."; \
-    cp /comfyui/custom_nodes/RES4LYF/model.py /comfyui/comfy/ldm/hidream/; \
-fi
-
-RUN if [ -f "/comfyui/custom_nodes/RES4LYF/helper.py" ]; then \
-    echo "Copie du fichier helper.py..."; \
-    cp /comfyui/custom_nodes/RES4LYF/helper.py /comfyui/comfy/ldm/; \
-fi
-
-# NE PAS copier res4lyf.py qui cause l'erreur PromptServer
-# Créer les fichiers __init__.py nécessaires
-RUN touch /comfyui/comfy/ldm/__init__.py && \
-    touch /comfyui/comfy/ldm/hidream/__init__.py
-
-# Supprimer le fichier res4lyf.py s'il a été copié par erreur
-RUN rm -f /comfyui/comfy/ldm/res4lyf.py 2>/dev/null || true
+# Solution propre: Modifier les imports de RES4LYF au lieu de déplacer les fichiers
+# Créer un patch pour corriger les imports problématiques
+RUN echo "Correction des imports dans RES4LYF..." && \
+    # Créer un fichier __init__.py dans le dossier hidream de RES4LYF
+    touch /comfyui/custom_nodes/RES4LYF/hidream/__init__.py && \
+    # Modifier les imports dans les fichiers RES4LYF pour qu'ils pointent vers le custom node
+    sed -i 's/from comfy.ldm.hidream.model/from hidream.model/g' /comfyui/custom_nodes/RES4LYF/models.py && \
+    sed -i 's/from ..helper/from hidream.helper/g' /comfyui/custom_nodes/RES4LYF/hidream/model.py
 
 # Vérification de la structure
 RUN echo "=== Structure RES4LYF ===" && \
     ls -la /comfyui/custom_nodes/RES4LYF/ && \
-    echo "=== Structure comfy/ldm ===" && \
-    ls -la /comfyui/comfy/ldm/ && \
-    echo "=== Structure comfy/ldm/hidream ===" && \
-    ls -la /comfyui/comfy/ldm/hidream/
+    echo "=== Contenu du dossier hidream ===" && \
+    ls -la /comfyui/custom_nodes/RES4LYF/hidream/
 
 # Vérifier et copier le handler depuis l'image de base
 RUN if [ -f "/app/handler.py" ]; then \
