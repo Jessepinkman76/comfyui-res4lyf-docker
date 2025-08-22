@@ -65,18 +65,29 @@ RUN mkdir -p /app/custom_nodes && \
 # Nettoyer les fichiers problématiques qui pourraient avoir été copiés précédemment
 RUN rm -rf /comfyui/comfy/ldm/res4lyf.py /comfyui/comfy/ldm/hidream 2>/dev/null || true
 
-# Solution complète: Corriger tous les imports problématiques de RES4LYF
-RUN echo "Correction systématique de tous les imports problématiques..." && \
-    # Créer les __init__.py nécessaires
+# Solution complète: Organiser correctement les fichiers RES4LYF
+RUN echo "Organisation des fichiers RES4LYF..." && \
+    # Créer le dossier hidream s'il n'existe pas
     mkdir -p /comfyui/custom_nodes/RES4LYF/hidream && \
+    # Déplacer model.py dans hidream s'il est à la racine
+    if [ -f "/comfyui/custom_nodes/RES4LYF/model.py" ]; then \
+        mv /comfyui/custom_nodes/RES4LYF/model.py /comfyui/custom_nodes/RES4LYF/hidream/; \
+    fi && \
+    # Déplacer helper.py dans hidream s'il est à la racine
+    if [ -f "/comfyui/custom_nodes/RES4LYF/helper.py" ]; then \
+        mv /comfyui/custom_nodes/RES4LYF/helper.py /comfyui/custom_nodes/RES4LYF/hidream/; \
+    fi && \
+    # Créer les __init__.py nécessaires
     touch /comfyui/custom_nodes/RES4LYF/hidream/__init__.py && \
-    # Corriger les imports dans models.py
-    sed -i 's/from comfy.ldm.hidream.model/from hidream.model/g' /comfyui/custom_nodes/RES4LYF/models.py && \
     # Corriger les imports dans model.py
-    sed -i 's/from ..helper/from hidream.helper/g' /comfyui/custom_nodes/RES4LYF/hidream/model.py 2>/dev/null || echo "Fichier model.py non trouvé, continuation..." && \
-    # Rechercher et corriger d'autres imports problématiques
-    find /comfyui/custom_nodes/RES4LYF -name "*.py" -exec sed -i 's/from comfy.ldm.hidream/from hidream/g' {} \; 2>/dev/null || true && \
-    find /comfyui/custom_nodes/RES4LYF -name "*.py" -exec sed -i 's/from comfy.ldm.helper/from hidream.helper/g' {} \; 2>/dev/null || true
+    if [ -f "/comfyui/custom_nodes/RES4LYF/hidream/model.py" ]; then \
+        sed -i 's/from ..helper/from .helper/g' /comfyui/custom_nodes/RES4LYF/hidream/model.py; \
+    fi && \
+    # Corriger les imports dans models.py
+    if [ -f "/comfyui/custom_nodes/RES4LYF/models.py" ]; then \
+        sed -i 's/from comfy.ldm.hidream.model/from hidream.model/g' /comfyui/custom_nodes/RES4LYF/models.py; \
+        sed -i 's/from hidream.model/from .hidream.model/g' /comfyui/custom_nodes/RES4LYF/models.py; \
+    fi
 
 # Vérification de la structure et des corrections
 RUN echo "=== Structure RES4LYF ===" && \
@@ -84,7 +95,12 @@ RUN echo "=== Structure RES4LYF ===" && \
     echo "=== Contenu du dossier hidream ===" && \
     ls -la /comfyui/custom_nodes/RES4LYF/hidream/ && \
     echo "=== Vérification des corrections ===" && \
-    grep -n "from.*hidream" /comfyui/custom_nodes/RES4LYF/models.py || echo "Aucun import hidream trouvé dans models.py"
+    if [ -f "/comfyui/custom_nodes/RES4LYF/models.py" ]; then \
+        grep -n "from.*hidream" /comfyui/custom_nodes/RES4LYF/models.py; \
+    fi && \
+    if [ -f "/comfyui/custom_nodes/RES4LYF/hidream/model.py" ]; then \
+        grep -n "from.*helper" /comfyui/custom_nodes/RES4LYF/hidream/model.py; \
+    fi
 
 # Vérifier et copier le handler depuis l'image de base
 RUN if [ -f "/app/handler.py" ]; then \
