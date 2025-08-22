@@ -15,7 +15,7 @@ RUN apt-get update && apt-get install -y \
     libssl-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Installer toutes les dépendances Python critiques dans l'environnement de base
+# Installer toutes les dépendances Python critiques
 RUN pip install --no-cache-dir \
     PyWavelets \
     numpy \
@@ -34,7 +34,7 @@ RUN pip install --no-cache-dir \
     accelerate \
     safetensors
 
-# Cloner RES4LYF manuellement
+# Cloner RES4LYF
 WORKDIR /comfyui/custom_nodes
 RUN git clone https://github.com/ClownsharkBatwing/RES4LYF.git
 
@@ -51,6 +51,3 @@ comfyui:
   controlnet: models/controlnet/
   clip: models/clip/
 EOF
-
-# Créer un lien symbolique par défaut
-RUN mkdir -p /workspace && ln -sf /runpod-volume /workspace/runpod-volume
