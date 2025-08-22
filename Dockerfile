@@ -38,11 +38,6 @@ RUN pip install --no-cache-dir \
 WORKDIR /comfyui/custom_nodes
 RUN git clone https://github.com/ClownsharkBatwing/RES4LYF.git
 
-# Installer les dépendances spécifiques de RES4LYF
-RUN if [ -f /comfyui/custom_nodes/RES4LYF/requirements.txt ]; then \
-    pip install --no-cache-dir -r /comfyui/custom_nodes/RES4LYF/requirements.txt; \
-fi
-
 # Configuration pour pointer vers les modèles du volume réseau
 RUN mkdir -p /comfyui && cat > /comfyui/extra_model_paths.yaml << EOF
 comfyui:
@@ -61,7 +56,7 @@ EOF
 RUN mkdir -p /app/custom_nodes && \
     ln -sf /comfyui/custom_nodes/RES4LYF /app/custom_nodes/RES4LYF
 
-# Utiliser le handler.py de l'image de base (ne pas le copier pour éviter les conflits)
+# Utiliser le handler.py de l'image de base
 # Le handler.py est déjà présent dans l'image de base à /app/handler.py
 
 # Point d'entrée original de l'image de base
