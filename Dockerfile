@@ -51,3 +51,17 @@ comfyui:
   controlnet: models/controlnet/
   clip: models/clip/
 EOF
+
+# Créer le script wrapper
+RUN echo '#!/bin/bash' > /wrapper.sh && \
+    echo 'if [ -f /runpod-volume/ComfyUI/venv/bin/activate ]; then' >> /wrapper.sh && \
+    echo '    source /runpod-volume/ComfyUI/venv/bin/activate' >> /wrapper.sh && \
+    echo '    echo "[WRAPPER] Environnement ComfyUI activé"' >> /wrapper.sh && \
+    echo 'else' >> /wrapper.sh && \
+    echo '    echo "[WRAPPER] Utilisation de l'\''environnement de base"' >> /wrapper.sh && \
+    echo 'fi' >> /wrapper.sh && \
+    echo 'exec "$@"' >> /wrapper.sh && \
+    chmod +x /wrapper.sh
+
+# Définir le wrapper comme entrypoint
+ENTRYPOINT ["/wrapper.sh"]
