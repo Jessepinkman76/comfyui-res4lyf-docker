@@ -36,11 +36,14 @@ RUN pip install --no-cache-dir \
     einops \
     kornia \
     timm \
-    huggingface_hub
+    huggingface_hub \
+    opencv-python
 
-# Cloner RES4LYF
+# Cloner RES4LYF avec la branche correcte
 WORKDIR /comfyui/custom_nodes
-RUN git clone https://github.com/ClownsharkBatwing/RES4LYF.git
+RUN git clone https://github.com/ClownsharkBatwing/RES4LYF.git && \
+    cd RES4LYF && \
+    git checkout main
 
 # Configuration pour pointer vers les modèles du volume réseau
 RUN mkdir -p /comfyui && cat > /comfyui/extra_model_paths.yaml << EOF
@@ -60,29 +63,46 @@ EOF
 RUN mkdir -p /app/custom_nodes && \
     ln -sf /comfyui/custom_nodes/RES4LYF /app/custom_nodes/RES4LYF
 
-# Corriger la structure comfy pour RES4LYF
-RUN if [ -d "/comfyui/custom_nodes/RES4LYF/comfy" ]; then \
-    echo "Copie de la structure comfy de RES4LYF..."; \
-    mkdir -p /comfyui/comfy/ldm && \
-    cp -r /comfyui/custom_nodes/RES4LYF/comfy/ldm/hidream /comfyui/comfy/ldm/; \
+# Solution définitive pour le problème d'importation RES4LYF
+# Créer la structure de répertoires attendue par ComfyUI
+RUN mkdir -p /comfyui/comfy/ldm/hidream
+
+# Copier les fichiers nécessaires depuis RES4LYF vers la structure comfy standard
+RUN if [ -f "/comfyui/custom_nodes/RES4LYF/hidream/model.py" ]; then \
+    echo "Copie des fichiers hidream depuis RES4LYF..."; \
+    cp /comfyui/custom_nodes/RES4LYF/hidream/model.py /comfyui/comfy/ldm/hidream/; \
+    # Copier également les autres fichiers nécessaires du répertoire hidream
+    cp /comfyui/custom_nodes/RES4LYF/hidream/*.py /comfyui/comfy/ldm/hidream/ 2>/dev/null || true; \
 else \
-    echo "Création de la structure manquante..."; \
-    mkdir -p /comfyui/comfy/ldm/hidream && \
-    touch /comfyui/comfy/ldm/hidream/__init__.py; \
+    echo "Avertissement: Fichier model.py non trouvé dans RES4LYF/hidream/"; \
+    # Vérifier s'il existe dans un autre emplacement
+    find /comfyui/custom_nodes/RES4LYF -name "model.py" -exec echo "Trouvé à: {}" \; 2>/dev/null; \
 fi
 
+# Créer un fichier __init__.py pour que Python reconnaisse le répertoire comme module
+RUN touch /comfyui/comfy/ldm/hidream/__init__.py
+
 # Vérification de la structure
-RUN echo "=== Structure RES4LYF ===" && \
-    find /comfyui/custom_nodes/RES4LYF -type f -name "*.py" | head -10 && \
-    echo "=== Structure comfy ===" && \
-    find /comfyui/comfy -name "hidream" -type d
+RUN echo "=== Vérification de la structure RES4LYF ===" && \
+    find /comfyui/custom_nodes/RES4LYF -name "*.py" | head -10 && \
+    echo "=== Vérification de la structure comfy ===" && \
+    find /comfyui/comfy -name "hidream" -type d && \
+    echo "=== Contenu de hidream ===" && \
+    ls -la /comfyui/comfy/ldm/hidream/
 
 # Vérifier et copier le handler depuis l'image de base
 RUN if [ -f "/app/handler.py" ]; then \
     echo "Handler found in /app"; \
 else \
     echo "Recherche du handler..."; \
-    find / -name "handler.py" -exec echo "Handler trouvé: {}" \; 2>/dev/null | head -1; \
+    HANDLER_PATH=$(find / -name "handler.py" -type f 2>/dev/null | head -1) && \
+    if [ -n "$HANDLER_PATH" ]; then \
+        echo "Handler trouvé à: $HANDLER_PATH"; \
+        mkdir -p /app && \
+        cp "$HANDLER_PATH" /app/; \
+    else \
+        echo "Avertissement: Handler non trouvé"; \
+    fi; \
 fi
 
 # Point d'entrée
