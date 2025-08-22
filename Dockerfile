@@ -32,7 +32,11 @@ RUN pip install --no-cache-dir \
     requests \
     transformers \
     accelerate \
-    safetensors
+    safetensors \
+    einops \
+    kornia \
+    timm \
+    huggingface_hub
 
 # Cloner RES4LYF
 WORKDIR /comfyui/custom_nodes
@@ -56,15 +60,29 @@ EOF
 RUN mkdir -p /app/custom_nodes && \
     ln -sf /comfyui/custom_nodes/RES4LYF /app/custom_nodes/RES4LYF
 
-# Vérifier la structure de RES4LYF et créer les répertoires manquants si nécessaire
+# Corriger la structure comfy pour RES4LYF
 RUN if [ -d "/comfyui/custom_nodes/RES4LYF/comfy" ]; then \
     echo "Copie de la structure comfy de RES4LYF..."; \
-    mkdir -p /comfyui/comfy; \
-    cp -r /comfyui/custom_nodes/RES4LYF/comfy/* /comfyui/comfy/; \
+    mkdir -p /comfyui/comfy/ldm && \
+    cp -r /comfyui/custom_nodes/RES4LYF/comfy/ldm/hidream /comfyui/comfy/ldm/; \
 else \
-    echo "Structure comfy non trouvée dans RES4LYF, création manuelle..."; \
-    mkdir -p /comfyui/comfy/ldm/hidream; \
+    echo "Création de la structure manquante..."; \
+    mkdir -p /comfyui/comfy/ldm/hidream && \
     touch /comfyui/comfy/ldm/hidream/__init__.py; \
+fi
+
+# Vérification de la structure
+RUN echo "=== Structure RES4LYF ===" && \
+    find /comfyui/custom_nodes/RES4LYF -type f -name "*.py" | head -10 && \
+    echo "=== Structure comfy ===" && \
+    find /comfyui/comfy -name "hidream" -type d
+
+# Vérifier et copier le handler depuis l'image de base
+RUN if [ -f "/app/handler.py" ]; then \
+    echo "Handler found in /app"; \
+else \
+    echo "Recherche du handler..."; \
+    find / -name "handler.py" -exec echo "Handler trouvé: {}" \; 2>/dev/null | head -1; \
 fi
 
 # Point d'entrée
