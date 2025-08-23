@@ -84,6 +84,14 @@ RUN echo "Correction complète de la structure RES4LYF..." && \
     fi && \
     if [ -f "/comfyui/custom_nodes/RES4LYF/conditioning.py" ]; then \
         sed -i 's/from \.beta\.constants import/from .beta.constants import/g' /comfyui/custom_nodes/RES4LYF/conditioning.py; \
+    fi && \
+    # Corriger l'import dans le fichier __init__.py de RES4LYF
+    if [ -f "/comfyui/custom_nodes/RES4LYF/__init__.py" ]; then \
+        sed -i 's/from \. import conditioning/from . import conditioning/g' /comfyui/custom_nodes/RES4LYF/__init__.py; \
+    fi && \
+    # Corriger l'import dans le fichier beta/__init__.py
+    if [ -f "/comfyui/custom_nodes/RES4LYF/beta/__init__.py" ]; then \
+        sed -i 's/from \. import rk_sampler_beta/from . import rk_sampler_beta/g' /comfyui/custom_nodes/RES4LYF/beta/__init__.py; \
     fi
 
 # Nettoyer les fichiers résiduels problématiques
