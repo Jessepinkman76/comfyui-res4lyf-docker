@@ -45,29 +45,35 @@ RUN pip install --no-cache-dir \
 WORKDIR /comfyui/custom_nodes
 RUN git clone https://github.com/ClownsharkBatwing/RES4LYF.git
 
-# Solution: Restaurer la structure originale de RES4LYF et corriger les imports
-RUN echo "Restauration de la structure originale de RES4LYF..." && \
-    # Remettre les fichiers à leur place d'origine si nécessaire
-    if [ -f "/comfyui/custom_nodes/RES4LYF/hidream/helper.py" ]; then \
-        mv /comfyui/custom_nodes/RES4LYF/hidream/helper.py /comfyui/custom_nodes/RES4LYF/; \
+# Solution: Installation complète de RES4LYF selon sa méthode recommandée
+RUN echo "Installation complète de RES4LYF..." && \
+    # Créer la structure de répertoires requise par RES4LYF dans ComfyUI
+    mkdir -p /comfyui/comfy/ldm/hidream && \
+    # Copier les fichiers nécessaires aux emplacements attendus par RES4LYF
+    if [ -f "/comfyui/custom_nodes/RES4LYF/helper.py" ]; then \
+        cp /comfyui/custom_nodes/RES4LYF/helper.py /comfyui/comfy/ldm/hidream/; \
     fi && \
-    if [ -f "/comfyui/custom_nodes/RES4LYF/hidream/model.py" ]; then \
-        mv /comfyui/custom_nodes/RES4LYF/hidream/model.py /comfyui/custom_nodes/RES4LYF/; \
+    if [ -f "/comfyui/custom_nodes/RES4LYF/model.py" ]; then \
+        cp /comfyui/custom_nodes/RES4LYF/model.py /comfyui/comfy/ldm/hidream/; \
     fi && \
-    # Supprimer le répertoire hidream créé précédemment
-    rm -rf /comfyui/custom_nodes/RES4LYF/hidream 2>/dev/null || true && \
-    # Corriger les imports dans sigmas.py
-    if [ -f "/comfyui/custom_nodes/RES4LYF/sigmas.py" ]; then \
-        sed -i 's/from \.helper import/from helper import/g' /comfyui/custom_nodes/RES4LYF/sigmas.py; \
-    fi && \
-    # Corriger les imports dans models.py
+    # Créer un fichier __init__.py pour le package hidream
+    echo "# RES4LYF package" > /comfyui/comfy/ldm/hidream/__init__.py && \
+    # Corriger les imports dans tous les fichiers RES4LYF
     if [ -f "/comfyui/custom_nodes/RES4LYF/models.py" ]; then \
-        sed -i 's/from \.hidream\.model import/from model import/g' /comfyui/custom_nodes/RES4LYF/models.py; \
+        sed -i 's/from comfy\.ldm\.hidream\.model import/from comfy.ldm.hidream.model import/g' /comfyui/custom_nodes/RES4LYF/models.py; \
+    fi && \
+    if [ -f "/comfyui/custom_nodes/RES4LYF/sigmas.py" ]; then \
+        sed -i 's/from helper import/from comfy.ldm.hidream.helper import/g' /comfyui/custom_nodes/RES4LYF/sigmas.py; \
+    fi && \
+    if [ -f "/comfyui/custom_nodes/RES4LYF/beta/rk_guide_func_beta.py" ]; then \
+        sed -i 's/from \.\.models import/from ..models import/g' /comfyui/custom_nodes/RES4LYF/beta/rk_guide_func_beta.py; \
+    fi && \
+    if [ -f "/comfyui/custom_nodes/RES4LYF/conditioning.py" ]; then \
+        sed -i 's/from \.beta\.constants import/from .beta.constants import/g' /comfyui/custom_nodes/RES4LYF/conditioning.py; \
     fi
 
-# Nettoyer les fichiers résiduels problématiques dans la structure ComfyUI
+# Nettoyer les fichiers résiduels problématiques
 RUN rm -f /comfyui/comfy/ldm/res4lyf.py 2>/dev/null || true
-RUN rm -rf /comfyui/comfy/ldm/hidream 2>/dev/null || true
 
 # Télécharger le handler RunPod
 RUN mkdir -p /app && \
