@@ -3,7 +3,7 @@ FROM timpietruskyblibla/runpod-worker-comfy:3.6.0-base
 # Utiliser le même environnement virtuel que l'image de base
 ENV PATH="/opt/venv/bin:${PATH}"
 
-# Installer les dépendances système nécessaires
+# Installer les dépendances système nécessaires (net-tools pour netstat)
 RUN apt-get update && apt-get install -y \
     curl \
     git \
@@ -13,13 +13,8 @@ RUN apt-get update && apt-get install -y \
     libxext6 \
     libgl1 \
     libssl-dev \
-    net-tools \
-    build-essential \
-    cmake \
-    pkg-config \
-    libopenblas-dev \
-    liblapack-dev \
-    && rm -rf /var/lib/apt/lists/*
+    net-tools && \
+    rm -rf /var/lib/apt/lists/*
 
 # Mettre à jour numpy pour résoudre les conflits de version
 RUN pip install --no-cache-dir --upgrade numpy
@@ -49,15 +44,6 @@ RUN pip install --no-cache-dir \
 # Cloner RES4LYF
 WORKDIR /comfyui/custom_nodes
 RUN git clone https://github.com/ClownsharkBatwing/RES4LYF.git
-
-# Cloner ComfyUI-GGUF (pour UnetLoaderGGUF)
-RUN git clone https://github.com/city96/ComfyUI-GGUF.git
-
-# Installer les dépendances spécifiques à ComfyUI-GGUF
-# Note: Nous installons une version pré-compilée de llama-cpp-python pour éviter les problèmes de compilation
-RUN pip install --no-cache-dir \
-    llama-cpp-python --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu \
-    protobuf
 
 # Configuration pour pointer vers les modèles du volume réseau
 RUN mkdir -p /comfyui && cat > /comfyui/extra_model_paths.yaml << EOF
@@ -111,12 +97,10 @@ RUN echo "Correction complète de la structure RES4LYF..." && \
 # Nettoyer les fichiers résiduels problématiques
 RUN rm -f /comfyui/comfy/ldm/res4lyf.py 2>/dev/null || true
 
-# Télécharger et corriger le handler RunPod
-RUN echo "Téléchargement et correction du handler RunPod..." && \
+# Télécharger le handler officiel de RunPod depuis la bonne URL
+RUN echo "Téléchargement du handler RunPod..." && \
     mkdir -p /app && \
     curl -o /app/handler.py https://raw.githubusercontent.com/runpod-workers/worker-comfyui/main/handler.py && \
-    # Corriger le bug de gestion des erreurs dans le handler
-    sed -i 's/for node_id, node_error in error_data\["node_errors"\].items():/if isinstance(error_data["node_errors"], list):\n        for node_error in error_data["node_errors"]:\n            print(f"Node error: {node_error}")\n    else:\n        for node_id, node_error in error_data["node_errors"].items():/g' /app/handler.py && \
     chmod +x /app/handler.py
 
 # Installer les dépendances du handler
