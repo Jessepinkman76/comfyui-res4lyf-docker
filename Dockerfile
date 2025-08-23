@@ -58,104 +58,37 @@ comfyui:
   clip: models/clip/
 EOF
 
-# Créer des liens symboliques pour que ComfyUI trouve les custom nodes
-RUN mkdir -p /app/custom_nodes && \
-    ln -sf /comfyui/custom_nodes/RES4LYF /app/custom_nodes/RES4LYF
-
-# Solution: Organiser correctement les fichiers RES4LYF
-RUN echo "Organisation des fichiers RES4LYF..." && \
-    # Vérifier la structure de RES4LYF
-    echo "=== Structure avant organisation ===" && \
-    ls -la /comfyui/custom_nodes/RES4LYF/ && \
-    # Déplacer les fichiers si nécessaire
-    if [ -f "/comfyui/custom_nodes/RES4LYF/model.py" ]; then \
-        mkdir -p /comfyui/custom_nodes/RES4LYF/hidream && \
-        mv /comfyui/custom_nodes/RES4LYF/model.py /comfyui/custom_nodes/RES4LYF/hidream/; \
+# Solution: Laisser RES4LYF s'installer correctement dans la structure ComfyUI
+RUN echo "Installation de RES4LYF dans la structure ComfyUI..." && \
+    # Copier les fichiers nécessaires dans la structure ComfyUI
+    if [ -d "/comfyui/custom_nodes/RES4LYF/comfy" ]; then \
+        cp -r /comfyui/custom_nodes/RES4LYF/comfy/* /comfyui/comfy/; \
     fi && \
+    # Créer les liens symboliques nécessaires
     if [ -f "/comfyui/custom_nodes/RES4LYF/helper.py" ]; then \
-        mkdir -p /comfyui/custom_nodes/RES4LYF/hidream && \
-        mv /comfyui/custom_nodes/RES4LYF/helper.py /comfyui/custom_nodes/RES4LYF/hidream/; \
+        mkdir -p /comfyui/comfy/ldm/hidream && \
+        cp /comfyui/custom_nodes/RES4LYF/helper.py /comfyui/comfy/ldm/hidream/; \
     fi && \
-    # Créer les __init__.py nécessaires
-    touch /comfyui/custom_nodes/RES4LYF/hidream/__init__.py && \
-    # Corriger les imports
-    if [ -f "/comfyui/custom_nodes/RES4LYF/hidream/model.py" ]; then \
-        sed -i 's/from ..helper/from .helper/g' /comfyui/custom_nodes/RES4LYF/hidream/model.py; \
+    if [ -f "/comfyui/custom_nodes/RES4LYF/model.py" ]; then \
+        mkdir -p /comfyui/comfy/ldm/hidream && \
+        cp /comfyui/custom_nodes/RES4LYF/model.py /comfyui/comfy/ldm/hidream/; \
+    fi && \
+    # Corriger les imports dans les fichiers RES4LYF
+    if [ -f "/comfyui/custom_nodes/RES4LYF/sigmas.py" ]; then \
+        sed -i 's/from helper import/from comfy.ldm.hidream.helper import/g' /comfyui/custom_nodes/RES4LYF/sigmas.py; \
     fi && \
     if [ -f "/comfyui/custom_nodes/RES4LYF/models.py" ]; then \
-        sed -i 's/from comfy.ldm.hidream.model/from hidream.model/g' /comfyui/custom_nodes/RES4LYF/models.py; \
+        sed -i 's/from comfy.ldm.hidream.model import/from comfy.ldm.hidream.model import/g' /comfyui/custom_nodes/RES4LYF/models.py; \
     fi
-
-# Installer le handler ComfyUI pour RunPod
-RUN echo "Téléchargement du handler ComfyUI pour RunPod..." && \
-    curl -o /app/handler.py https://raw.githubusercontent.com/runpod/runpod-worker-comfy/main/comfyui/handler.py && \
-    chmod +x /app/handler.py && \
-    # Installer les dépendances du handler
-    pip install --no-cache-dir runpod
-
-# Vérification de la structure et des corrections
-RUN echo "=== Structure RES4LYF ===" && \
-    ls -la /comfyui/custom_nodes/RES4LYF/ && \
-    echo "=== Contenu du dossier hidream ===" && \
-    ls -la /comfyui/custom_nodes/RES4LYF/hidream/ && \
-    echo "=== Vérification des corrections ===" && \
-    if [ -f "/comfyui/custom_nodes/RES4LYF/models.py" ]; then \
-        grep -n "from.*hidream" /comfyui/custom_nodes/RES4LYF/models.py || echo "Aucun import hidream trouvé"; \
-    fi && \
-    if [ -f "/comfyui/custom_nodes/RES4LYF/hidream/model.py" ]; then \
-        grep -n "from.*helper" /comfyui/custom_nodes/RES4LYF/hidream/model.py || echo "Aucun import helper trouvé"; \
-    fi
-
-# Créer un script de démarrage simplifié avec heredoc pour éviter les problèmes d'échappement
-RUN cat > /start.sh << 'EOF'
-#!/bin/bash
-echo "Démarrage du conteneur..."
 
 # Nettoyer les fichiers résiduels problématiques
-rm -f /comfyui/comfy/ldm/res4lyf.py 2>/dev/null || true
-rm -rf /comfyui/comfy/ldm/hidream 2>/dev/null || true
+RUN rm -f /comfyui/comfy/ldm/res4lyf.py 2>/dev/null || true
 
-# Attendre le volume réseau avec timeout
-echo "Attente du volume réseau..."
-timeout=60
-while [ ! -d /runpod-volume/ComfyUI ] && [ $timeout -gt 0 ]; do
-    sleep 2
-    timeout=$((timeout-2))
-done
+# Vérification de la structure
+RUN echo "=== Structure ComfyUI après installation ===" && \
+    find /comfyui/comfy/ldm -name "*.py" | head -10 && \
+    echo "=== Structure RES4LYF ===" && \
+    ls -la /comfyui/custom_nodes/RES4LYF/
 
-if [ ! -d /runpod-volume/ComfyUI ]; then
-    echo "Avertissement: Volume réseau non trouvé après 60 secondes"
-else
-    echo "Volume réseau trouvé"
-fi
-
-# Configurer le PYTHONPATH
-export PYTHONPATH="/comfyui:/comfyui/custom_nodes/RES4LYF:/comfyui/custom_nodes/RES4LYF/hidream:$PYTHONPATH"
-
-# Démarrer ComfyUI
-cd /comfyui
-python main.py --fast --listen --port 8188 &
-
-# Attendre que le serveur soit prêt
-echo "Attente du démarrage de ComfyUI..."
-timeout=30
-while ! curl -s http://127.0.0.1:8188 >/dev/null && [ $timeout -gt 0 ]; do
-    sleep 1
-    timeout=$((timeout-1))
-done
-
-if [ $timeout -eq 0 ]; then
-    echo "Avertissement: Timeout lors de l'attente de ComfyUI"
-else
-    echo "ComfyUI est démarré"
-fi
-
-# Démarrer le handler RunPod
-echo "Démarrage du handler RunPod..."
-exec python -u /app/handler.py
-EOF
-
-RUN chmod +x /start.sh
-
-# Point d'entrée
-CMD ["/start.sh"]
+# Utiliser le handler existant de l'image de base sans le modifier
+CMD ["python", "-u", "/app/handler.py"]
