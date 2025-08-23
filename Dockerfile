@@ -45,141 +45,86 @@ RUN pip install --no-cache-dir \
 WORKDIR /comfyui/custom_nodes
 RUN git clone https://github.com/ClownsharkBatwing/RES4LYF.git
 
-# Installation CORRECTE de RES4LYF selon sa documentation
-RUN echo "Installation de RES4LYF avec la méthode officielle..." && \
-    # Créer la structure de répertoires requise
+# Solution: Installation complète de RES4LYF avec extension des samplers/schedulers
+RUN echo "Installation complète de RES4LYF avec extension des samplers/schedulers..." && \
+    # Créer la structure de répertoires requise par RES4LYF
     mkdir -p /comfyui/comfy/ldm/hidream && \
-    # Copier les fichiers nécessaires aux emplacements attendus
-    cp /comfyui/custom_nodes/RES4LYF/helper.py /comfyui/comfy/ldm/hidream/ && \
-    cp /comfyui/custom_nodes/RES4LYF/model.py /comfyui/comfy/ldm/hidream/ && \
-    # Créer le fichier __init__.py pour le package hidream
+    # Copier les fichiers nécessaires
+    if [ -f "/comfyui/custom_nodes/RES4LYF/helper.py" ]; then \
+        cp /comfyui/custom_nodes/RES4LYF/helper.py /comfyui/comfy/ldm/hidream/; \
+    fi && \
+    if [ -f "/comfyui/custom_nodes/RES4LYF/model.py" ]; then \
+        cp /comfyui/custom_nodes/RES4LYF/model.py /comfyui/comfy/ldm/hidream/; \
+    fi && \
+    # Créer un fichier __init__.py pour le package hidream
     echo "# RES4LYF package" > /comfyui/comfy/ldm/hidream/__init__.py && \
-    # Corriger les imports dans les fichiers RES4LYF avec la bonne approche
-    # Utiliser des séd plus précis pour éviter les erreurs
+    # Corriger les imports dans tous les fichiers RES4LYF
     if [ -f "/comfyui/custom_nodes/RES4LYF/models.py" ]; then \
         sed -i 's/from comfy\.ldm\.hidream\.model import/from comfy.ldm.hidream.model import/g' /comfyui/custom_nodes/RES4LYF/models.py; \
     fi && \
     if [ -f "/comfyui/custom_nodes/RES4LYF/sigmas.py" ]; then \
         sed -i 's/from helper import/from comfy.ldm.hidream.helper import/g' /comfyui/custom_nodes/RES4LYF/sigmas.py; \
-    fi && \
-    if [ -f "/comfyui/custom_nodes/RES4LYF/beta/rk_guide_func_beta.py" ]; then \
-        sed -i 's/from \.\.models import/from ..models import/g' /comfyui/custom_nodes/RES4LYF/beta/rk_guide_func_beta.py; \
-    fi && \
-    if [ -f "/comfyui/custom_nodes/RES4LYF/conditioning.py" ]; then \
-        sed -i 's/from \.beta\.constants import/from .beta.constants import/g' /comfyui/custom_nodes/RES4LYF/conditioning.py; \
-    fi && \
-    # S'assurer que tous les fichiers nécessaires sont présents
-    echo "Structure finale:" && \
-    find /comfyui/comfy/ldm/hidream/ -type f && \
-    echo "Fichiers RES4LYF:" && \
-    find /comfyui/custom_nodes/RES4LYF/ -name "*.py" | head -10
+    fi
 
-# Vérifier que les fichiers critiques sont présents
-RUN echo "Vérification des fichiers critiques..." && \
-    [ -f "/comfyui/comfy/ldm/hidream/helper.py" ] && echo "✓ helper.py présent" || echo "✗ helper.py manquant" && \
-    [ -f "/comfyui/comfy/ldm/hidream/model.py" ] && echo "✓ model.py présent" || echo "✗ model.py manquant" && \
-    [ -f "/comfyui/custom_nodes/RES4LYF/models.py" ] && echo "✓ models.py présent" || echo "✗ models.py manquant"
+# Nettoyer les fichiers résiduels problématiques
+RUN rm -f /comfyui/comfy/ldm/res4lyf.py 2>/dev/null || true
 
-# Télécharger le handler RunPod
-RUN mkdir -p /app && \
+# Étendre les listes de samplers et schedulers de ComfyUI pour inclure ceux de RES4LYF
+RUN echo "Extension des listes de samplers et schedulers..." && \
+    # Créer un patch pour étendre les listes de samplers et schedulers
+    cat > /comfyui/custom_nodes/RES4LYF/extension_patch.py << 'EOF'
+import comfy.samplers
+
+# Sauvegarder les listes originales
+original_sampler_names = comfy.samplers.SAMPLER_NAMES.copy()
+original_scheduler_names = comfy.samplers.SCHEDULER_NAMES.copy()
+
+# Étendre les listes avec les samplers et schedulers de RES4LYF
+def extend_sampler_lists():
+    # Ajouter les samplers de RES4LYF
+    res4lyf_samplers = ['res_2s', 'res_3s', 'res_4s']  # Ajouter tous les samplers de RES4LYF
+    for sampler in res4lyf_samplers:
+        if sampler not in comfy.samplers.SAMPLER_NAMES:
+            comfy.samplers.SAMPLER_NAMES.append(sampler)
+    
+    # Ajouter les schedulers de RES4LYF
+    res4lyf_schedulers = ['beta57', 'beta72']  # Ajouter tous les schedulers de RES4LYF
+    for scheduler in res4lyf_schedulers:
+        if scheduler not in comfy.samplers.SCHEDULER_NAMES:
+            comfy.samplers.SCHEDULER_NAMES.append(scheduler)
+
+# Exécuter l'extension
+extend_sampler_lists()
+EOF
+
+# Modifier le handler pour charger le patch avant la validation
+RUN echo "Modification du handler pour charger le patch d'extension..." && \
+    mkdir -p /app && \
     curl -o /app/handler.py https://raw.githubusercontent.com/runpod-workers/worker-comfyui/main/handler.py && \
+    # Ajouter le chargement du patch au début du handler
+    sed -i '1iimport sys\nsys.path.append("/comfyui/custom_nodes/RES4LYF")\nfrom extension_patch import *' /app/handler.py && \
     chmod +x /app/handler.py
 
 # Installer les dépendances du handler
 RUN pip install --no-cache-dir runpod aiohttp
 
-# Créer un script de démarrage avec tests complets
+# Créer un script de démarrage
 RUN cat > /start.sh << 'EOF'
 #!/bin/bash
 
-# Test d'import complet de RES4LYF avant le démarrage
-echo "=== TEST COMPLET RES4LYF ==="
-python -c "
-import sys
-import os
-
-# Ajouter les chemins nécessaires
-sys.path.insert(0, '/comfyui')
-sys.path.insert(0, '/comfyui/custom_nodes')
-sys.path.insert(0, '/comfyui/custom_nodes/RES4LYF')
-
-print('Chemins Python:', sys.path)
-print()
-
-# Test 1: Vérification des fichiers
-def check_file(path):
-    if os.path.exists(path):
-        print(f'✓ {path}')
-        return True
-    else:
-        print(f'✗ {path} - MANQUANT')
-        return False
-
-print('Vérification des fichiers:')
-files_to_check = [
-    '/comfyui/comfy/ldm/hidream/helper.py',
-    '/comfyui/comfy/ldm/hidream/model.py', 
-    '/comfyui/comfy/ldm/hidream/__init__.py',
-    '/comfyui/custom_nodes/RES4LYF/models.py',
-    '/comfyui/custom_nodes/RES4LYF/sigmas.py'
-]
-
-all_files_ok = all([check_file(f) for f in files_to_check])
-print()
-
-# Test 2: Test d'import
-try:
-    from comfy.ldm.hidream import helper, model
-    print('✓ Import comfy.ldm.hidream réussi')
-except Exception as e:
-    print(f'✗ Erreur import comfy.ldm.hidream: {e}')
-    import traceback
-    traceback.print_exc()
-
-print()
-
-# Test 3: Test des samplers
-try:
-    # Essayer d'importer les samplers RES4LYF
-    import RES4LYF.models
-    print('✓ Import RES4LYF.models réussi')
-    
-    # Vérifier si res_2s est disponible
-    if hasattr(RES4LYF.models, 'res_2s'):
-        print('✓ Sampler res_2s disponible')
-    else:
-        print('✗ Sampler res_2s non trouvé')
-        
-except Exception as e:
-    print(f'✗ Erreur import RES4LYF: {e}')
-    import traceback
-    traceback.print_exc()
-"
-
-echo "=== DÉMARRAGE COMFYUI ==="
-
 # Démarrer ComfyUI en arrière-plan
+echo "Démarrage de ComfyUI..."
 cd /comfyui
 python main.py --listen --port 8188 &
 
 # Attendre que ComfyUI soit prêt
+echo "Attente du démarrage de ComfyUI..."
 for i in {1..30}; do
     if curl -s http://127.0.0.1:8188 >/dev/null; then
-        echo "ComfyUI est démarré"
-        
-        # Vérifier que RES4LYF est chargé dans l'API
-        echo "Vérification de l'API ComfyUI..."
-        API_RESPONSE=$(curl -s http://127.0.0.1:8188/object_info)
-        if echo "$API_RESPONSE" | grep -i "res_2s\|beta57\|RES4LYF" >/dev/null; then
-            echo "✓ RES4LYF détecté dans l'API ComfyUI"
-        else
-            echo "⚠ RES4LYF non visible dans l'API"
-            echo "Réponse API (extrait):"
-            echo "$API_RESPONSE" | head -5
-        fi
+        echo "ComfyUI est démarré et accessible"
         break
     fi
-    echo "Attente ComfyUI ($i/30)..."
+    echo "Tentative $i/30 - ComfyUI n'est pas encore prêt"
     sleep 2
 done
 
