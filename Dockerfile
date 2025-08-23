@@ -3,7 +3,7 @@ FROM timpietruskyblibla/runpod-worker-comfy:3.6.0-base
 # Utiliser le même environnement virtuel que l'image de base
 ENV PATH="/opt/venv/bin:${PATH}"
 
-# Installer les dépendances système nécessaires
+# Installer les dépendances système nécessaires (net-tools pour netstat)
 RUN apt-get update && apt-get install -y \
     curl \
     git \
@@ -13,7 +13,7 @@ RUN apt-get update && apt-get install -y \
     libxext6 \
     libgl1 \
     libssl-dev \
-    net-tools && \  # Pour netstat
+    net-tools && \
     rm -rf /var/lib/apt/lists/*
 
 # Mettre à jour numpy pour résoudre les conflits de version
