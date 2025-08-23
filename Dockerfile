@@ -13,8 +13,8 @@ RUN apt-get update && apt-get install -y \
     libxext6 \
     libgl1 \
     libssl-dev \
-    net-tools \  # Pour netstat
-    && rm -rf /var/lib/apt/lists/*
+    net-tools && \  # Pour netstat
+    rm -rf /var/lib/apt/lists/*
 
 # Mettre à jour numpy pour résoudre les conflits de version
 RUN pip install --no-cache-dir --upgrade numpy
