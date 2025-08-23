@@ -84,24 +84,20 @@ RUN echo "Installation de RES4LYF dans la structure ComfyUI..." && \
 # Nettoyer les fichiers résiduels problématiques
 RUN rm -f /comfyui/comfy/ldm/res4lyf.py 2>/dev/null || true
 
-# Vérifier ce qui existe dans /app et trouver le bon handler
+# Vérifier ce qui existe dans /app (sans grep pour éviter les erreurs)
 RUN echo "=== Contenu de /app ===" && \
-    ls -la /app/ && \
-    echo "=== Contenu de / ===" && \
-    ls -la / | grep -E "(app|handler|runpod)"
+    ls -la /app/ 2>/dev/null || echo "Le répertoire /app n'existe pas encore"
 
-# Rechercher le handler dans le système
-RUN find / -name "*handler*" -type f 2>/dev/null | head -10
+# Rechercher le handler dans le système (sans afficher d'erreurs)
+RUN find / -name "*handler*" -type f 2>/dev/null | head -5 || echo "Aucun handler trouvé"
 
-# Si aucun handler n'est trouvé, télécharger le handler officiel de RunPod
-RUN if [ ! -f "/app/handler.py" ]; then \
-    echo "Téléchargement du handler RunPod..." && \
+# Télécharger le handler officiel de RunPod
+RUN echo "Téléchargement du handler RunPod..." && \
     mkdir -p /app && \
     curl -o /app/handler.py https://raw.githubusercontent.com/runpod/runpod-worker-comfy/main/comfyui/handler.py && \
-    chmod +x /app/handler.py; \
-fi
+    chmod +x /app/handler.py
 
-# Installer les dépendances du handler si nécessaire
+# Installer les dépendances du handler
 RUN pip install --no-cache-dir runpod aiohttp
 
 # Vérification finale
