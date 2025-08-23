@@ -84,11 +84,30 @@ RUN echo "Installation de RES4LYF dans la structure ComfyUI..." && \
 # Nettoyer les fichiers résiduels problématiques
 RUN rm -f /comfyui/comfy/ldm/res4lyf.py 2>/dev/null || true
 
-# Vérification de la structure
-RUN echo "=== Structure ComfyUI après installation ===" && \
-    find /comfyui/comfy/ldm -name "*.py" | head -10 && \
-    echo "=== Structure RES4LYF ===" && \
-    ls -la /comfyui/custom_nodes/RES4LYF/
+# Vérifier ce qui existe dans /app et trouver le bon handler
+RUN echo "=== Contenu de /app ===" && \
+    ls -la /app/ && \
+    echo "=== Contenu de / ===" && \
+    ls -la / | grep -E "(app|handler|runpod)"
 
-# Utiliser le handler existant de l'image de base sans le modifier
+# Rechercher le handler dans le système
+RUN find / -name "*handler*" -type f 2>/dev/null | head -10
+
+# Si aucun handler n'est trouvé, télécharger le handler officiel de RunPod
+RUN if [ ! -f "/app/handler.py" ]; then \
+    echo "Téléchargement du handler RunPod..." && \
+    mkdir -p /app && \
+    curl -o /app/handler.py https://raw.githubusercontent.com/runpod/runpod-worker-comfy/main/comfyui/handler.py && \
+    chmod +x /app/handler.py; \
+fi
+
+# Installer les dépendances du handler si nécessaire
+RUN pip install --no-cache-dir runpod aiohttp
+
+# Vérification finale
+RUN echo "=== Vérification finale ===" && \
+    ls -la /app/ && \
+    [ -f "/app/handler.py" ] && echo "Handler trouvé" || echo "Handler non trouvé"
+
+# Point d'entrée
 CMD ["python", "-u", "/app/handler.py"]
