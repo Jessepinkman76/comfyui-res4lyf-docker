@@ -16,6 +16,9 @@ RUN apt-get update && apt-get install -y \
     net-tools \
     build-essential \
     cmake \
+    pkg-config \
+    libopenblas-dev \
+    liblapack-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Mettre à jour numpy pour résoudre les conflits de version
@@ -51,8 +54,9 @@ RUN git clone https://github.com/ClownsharkBatwing/RES4LYF.git
 RUN git clone https://github.com/city96/ComfyUI-GGUF.git
 
 # Installer les dépendances spécifiques à ComfyUI-GGUF
+# Note: Nous installons une version pré-compilée de llama-cpp-python pour éviter les problèmes de compilation
 RUN pip install --no-cache-dir \
-    llama-cpp-python \
+    llama-cpp-python --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu \
     protobuf
 
 # Configuration pour pointer vers les modèles du volume réseau
