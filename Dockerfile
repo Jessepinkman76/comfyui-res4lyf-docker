@@ -84,17 +84,10 @@ RUN echo "Installation de RES4LYF dans la structure ComfyUI..." && \
 # Nettoyer les fichiers résiduels problématiques
 RUN rm -f /comfyui/comfy/ldm/res4lyf.py 2>/dev/null || true
 
-# Vérifier ce qui existe dans /app (sans grep pour éviter les erreurs)
-RUN echo "=== Contenu de /app ===" && \
-    ls -la /app/ 2>/dev/null || echo "Le répertoire /app n'existe pas encore"
-
-# Rechercher le handler dans le système (sans afficher d'erreurs)
-RUN find / -name "*handler*" -type f 2>/dev/null | head -5 || echo "Aucun handler trouvé"
-
-# Télécharger le handler officiel de RunPod
+# Télécharger le handler officiel de RunPod depuis la bonne URL
 RUN echo "Téléchargement du handler RunPod..." && \
     mkdir -p /app && \
-    curl -o /app/handler.py https://raw.githubusercontent.com/runpod/runpod-worker-comfy/main/comfyui/handler.py && \
+    curl -o /app/handler.py https://raw.githubusercontent.com/runpod-workers/worker-comfyui/main/handler.py && \
     chmod +x /app/handler.py
 
 # Installer les dépendances du handler
