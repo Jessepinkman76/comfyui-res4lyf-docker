@@ -93,10 +93,40 @@ RUN echo "Téléchargement du handler RunPod..." && \
 # Installer les dépendances du handler
 RUN pip install --no-cache-dir runpod aiohttp
 
-# Vérification finale
-RUN echo "=== Vérification finale ===" && \
-    ls -la /app/ && \
-    [ -f "/app/handler.py" ] && echo "Handler trouvé" || echo "Handler non trouvé"
+# Créer un script de démarrage qui lance ComfyUI en premier
+RUN cat > /start.sh << 'EOF'
+#!/bin/bash
+
+# Démarrer ComfyUI en arrière-plan
+echo "Démarrage de ComfyUI..."
+cd /comfyui
+python main.py --listen --port 8188 &
+
+# Attendre que ComfyUI soit prêt
+echo "Attente du démarrage de ComfyUI..."
+MAX_RETRIES=30
+RETRY_DELAY=2
+
+for i in $(seq 1 $MAX_RETRIES); do
+    if curl -s http://127.0.0.1:8188 >/dev/null; then
+        echo "ComfyUI est démarré et accessible"
+        break
+    fi
+    echo "Tentative $i/$MAX_RETRIES - ComfyUI n'est pas encore prêt"
+    sleep $RETRY_DELAY
+    
+    if [ $i -eq $MAX_RETRIES ]; then
+        echo "Erreur: ComfyUI n'a pas démarré après $MAX_RETRIES tentatives"
+        exit 1
+    fi
+done
+
+# Démarrer le handler RunPod
+echo "Démarrage du handler RunPod..."
+exec python -u /app/handler.py
+EOF
+
+RUN chmod +x /start.sh
 
 # Point d'entrée
-CMD ["python", "-u", "/app/handler.py"]
+CMD ["/start.sh"]
