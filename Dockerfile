@@ -59,27 +59,31 @@ comfyui:
   clip: models/clip/
 EOF
 
-# Solution: Laisser RES4LYF s'installer correctement dans la structure ComfyUI
-RUN echo "Installation de RES4LYF dans la structure ComfyUI..." && \
-    # Copier les fichiers nécessaires dans la structure ComfyUI
-    if [ -d "/comfyui/custom_nodes/RES4LYF/comfy" ]; then \
-        cp -r /comfyui/custom_nodes/RES4LYF/comfy/* /comfyui/comfy/; \
-    fi && \
-    # Créer les liens symboliques nécessaires
+# Solution: Corriger complètement la structure de RES4LYF
+RUN echo "Correction complète de la structure RES4LYF..." && \
+    # Créer la structure de répertoires nécessaire dans ComfyUI
+    mkdir -p /comfyui/comfy/ldm/hidream && \
+    # Copier tous les fichiers nécessaires
     if [ -f "/comfyui/custom_nodes/RES4LYF/helper.py" ]; then \
-        mkdir -p /comfyui/comfy/ldm/hidream && \
         cp /comfyui/custom_nodes/RES4LYF/helper.py /comfyui/comfy/ldm/hidream/; \
     fi && \
     if [ -f "/comfyui/custom_nodes/RES4LYF/model.py" ]; then \
-        mkdir -p /comfyui/comfy/ldm/hidream && \
         cp /comfyui/custom_nodes/RES4LYF/model.py /comfyui/comfy/ldm/hidream/; \
     fi && \
-    # Corriger les imports dans les fichiers RES4LYF
+    # Créer les fichiers __init__.py nécessaires
+    touch /comfyui/comfy/ldm/hidream/__init__.py && \
+    # Corriger les imports dans tous les fichiers RES4LYF
+    if [ -f "/comfyui/custom_nodes/RES4LYF/models.py" ]; then \
+        sed -i 's/from comfy\.ldm\.hidream\.model import/from comfy.ldm.hidream.model import/g' /comfyui/custom_nodes/RES4LYF/models.py; \
+    fi && \
     if [ -f "/comfyui/custom_nodes/RES4LYF/sigmas.py" ]; then \
         sed -i 's/from helper import/from comfy.ldm.hidream.helper import/g' /comfyui/custom_nodes/RES4LYF/sigmas.py; \
     fi && \
-    if [ -f "/comfyui/custom_nodes/RES4LYF/models.py" ]; then \
-        sed -i 's/from comfy.ldm.hidream.model import/from comfy.ldm.hidream.model import/g' /comfyui/custom_nodes/RES4LYF/models.py; \
+    if [ -f "/comfyui/custom_nodes/RES4LYF/beta/rk_guide_func_beta.py" ]; then \
+        sed -i 's/from \.\.models import/from ..models import/g' /comfyui/custom_nodes/RES4LYF/beta/rk_guide_func_beta.py; \
+    fi && \
+    if [ -f "/comfyui/custom_nodes/RES4LYF/conditioning.py" ]; then \
+        sed -i 's/from \.beta\.constants import/from .beta.constants import/g' /comfyui/custom_nodes/RES4LYF/conditioning.py; \
     fi
 
 # Nettoyer les fichiers résiduels problématiques
@@ -94,14 +98,19 @@ RUN echo "Téléchargement du handler RunPod..." && \
 # Installer les dépendances du handler
 RUN pip install --no-cache-dir runpod aiohttp
 
-# Créer un script de démarrage qui lance ComfyUI en premier
+# Créer un script de démarrage amélioré avec plus de logs
 RUN cat > /start.sh << 'EOF'
 #!/bin/bash
 
+# Fonction pour logger avec timestamp
+log() {
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1"
+}
+
 # Démarrer ComfyUI en arrière-plan
-echo "Démarrage de ComfyUI..."
+log "Démarrage de ComfyUI..."
 cd /comfyui
-python main.py --listen --port 8188 &
+python main.py --listen --port 8188 2>&1 | while read line; do log "COMFYUI: $line"; done &
 COMFY_PID=$!
 
 # Fonction pour vérifier si ComfyUI est toujours en cours d'exécution
@@ -110,45 +119,50 @@ is_comfy_running() {
 }
 
 # Attendre que ComfyUI soit prêt
-echo "Attente du démarrage de ComfyUI..."
-MAX_RETRIES=120  # Augmenter à 120 tentatives (4 minutes)
+log "Attente du démarrage de ComfyUI..."
+MAX_RETRIES=180  # Augmenter à 180 tentatives (6 minutes)
 RETRY_DELAY=2
 
 for i in $(seq 1 $MAX_RETRIES); do
     if ! is_comfy_running; then
-        echo "Erreur: Le processus ComfyUI a été interrompu"
+        log "Erreur: Le processus ComfyUI a été interrompu"
         exit 1
     fi
 
     # Vérifier si le port 8188 est en écoute
     if netstat -tln | grep :8188 > /dev/null; then
-        echo "Port 8188 est en écoute, vérification de la réponse HTTP..."
+        log "Port 8188 est en écoute, vérification de la réponse HTTP..."
         if curl -s http://127.0.0.1:8188 >/dev/null; then
-            echo "ComfyUI est démarré et accessible"
+            log "ComfyUI est démarré et accessible"
             break
         fi
     fi
     
-    echo "Tentative $i/$MAX_RETRIES - ComfyUI n'est pas encore prêt"
+    log "Tentative $i/$MAX_RETRIES - ComfyUI n'est pas encore prêt"
     sleep $RETRY_DELAY
     
     if [ $i -eq $MAX_RETRIES ]; then
-        echo "Erreur: ComfyUI n'a pas démarré après $MAX_RETRIES tentatives"
-        echo "Affichage des processus..."
+        log "Erreur: ComfyUI n'a pas démarré après $MAX_RETRIES tentatives"
+        log "Affichage des processus..."
         ps aux
-        echo "Affichage de l'écoute des ports..."
+        log "Affichage de l'écoute des ports..."
         netstat -tln
+        log "Dernières lignes des logs ComfyUI:"
+        tail -20 /comfyui/logs/comfyui.log 2>/dev/null || echo "Aucun log trouvé"
         kill $COMFY_PID 2>/dev/null
         exit 1
     fi
 done
 
 # Démarrer le handler RunPod
-echo "Démarrage du handler RunPod..."
+log "Démarrage du handler RunPod..."
 exec python -u /app/handler.py
 EOF
 
 RUN chmod +x /start.sh
+
+# Créer le répertoire de logs pour ComfyUI
+RUN mkdir -p /comfyui/logs
 
 # Point d'entrée
 CMD ["/start.sh"]
