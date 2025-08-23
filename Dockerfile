@@ -13,6 +13,7 @@ RUN apt-get update && apt-get install -y \
     libxext6 \
     libgl1 \
     libssl-dev \
+    net-tools \  # Pour netstat
     && rm -rf /var/lib/apt/lists/*
 
 # Mettre à jour numpy pour résoudre les conflits de version
@@ -101,22 +102,43 @@ RUN cat > /start.sh << 'EOF'
 echo "Démarrage de ComfyUI..."
 cd /comfyui
 python main.py --listen --port 8188 &
+COMFY_PID=$!
+
+# Fonction pour vérifier si ComfyUI est toujours en cours d'exécution
+is_comfy_running() {
+    kill -0 $COMFY_PID 2>/dev/null
+}
 
 # Attendre que ComfyUI soit prêt
 echo "Attente du démarrage de ComfyUI..."
-MAX_RETRIES=30
+MAX_RETRIES=120  # Augmenter à 120 tentatives (4 minutes)
 RETRY_DELAY=2
 
 for i in $(seq 1 $MAX_RETRIES); do
-    if curl -s http://127.0.0.1:8188 >/dev/null; then
-        echo "ComfyUI est démarré et accessible"
-        break
+    if ! is_comfy_running; then
+        echo "Erreur: Le processus ComfyUI a été interrompu"
+        exit 1
     fi
+
+    # Vérifier si le port 8188 est en écoute
+    if netstat -tln | grep :8188 > /dev/null; then
+        echo "Port 8188 est en écoute, vérification de la réponse HTTP..."
+        if curl -s http://127.0.0.1:8188 >/dev/null; then
+            echo "ComfyUI est démarré et accessible"
+            break
+        fi
+    fi
+    
     echo "Tentative $i/$MAX_RETRIES - ComfyUI n'est pas encore prêt"
     sleep $RETRY_DELAY
     
     if [ $i -eq $MAX_RETRIES ]; then
         echo "Erreur: ComfyUI n'a pas démarré après $MAX_RETRIES tentatives"
+        echo "Affichage des processus..."
+        ps aux
+        echo "Affichage de l'écoute des ports..."
+        netstat -tln
+        kill $COMFY_PID 2>/dev/null
         exit 1
     fi
 done
