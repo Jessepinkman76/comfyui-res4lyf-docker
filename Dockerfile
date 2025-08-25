@@ -23,27 +23,14 @@ RUN useradd -m -u 1000 -s /bin/bash comfyuser
 USER comfyuser
 WORKDIR /home/comfyuser
 
-# Cloner ComfyUI et les nodes custom avec vérification
-RUN git clone https://github.com/jalberty2018/run-comfyui-wan.git ComfyUI && \
-    echo "Contenu du répertoire ComfyUI après clone:" && \
-    ls -la ComfyUI/ && \
-    echo "Recherche de requirements.txt:" && \
-    find ComfyUI/ -name "requirements.txt" -type f
+# Cloner ComfyUI et les nodes custom
+RUN git clone https://github.com/jalberty2018/run-comfyui-wan.git ComfyUI
 
-# Vérifier que le clone a réussi et trouver requirements.txt
-RUN if [ ! -d "ComfyUI" ]; then \
-    echo "ERROR: ComfyUI directory not found"; \
-    exit 1; \
-    fi && \
-    REQUIREMENTS_FILE=$(find ComfyUI/ -name "requirements.txt" -type f | head -1) && \
-    if [ -z "$REQUIREMENTS_FILE" ]; then \
-    echo "ERROR: requirements.txt not found in ComfyUI directory or subdirectories"; \
-    echo "Contents of ComfyUI directory:"; \
-    ls -la ComfyUI/; \
-    exit 1; \
-    else \
-    echo "Found requirements.txt at: $REQUIREMENTS_FILE"; \
-    fi
+# Afficher la structure du repository pour debug
+RUN echo "Structure du repository ComfyUI:" && \
+    find ComfyUI/ -maxdepth 3 -type d -print && \
+    echo "Fichiers dans ComfyUI:" && \
+    ls -la ComfyUI/
 
 # Configurer l'environnement Python
 ENV PATH="/home/comfyuser/.local/bin:$PATH"
@@ -52,30 +39,42 @@ RUN pip install --upgrade pip
 # Afficher les versions de Python et pip pour le debug
 RUN python3 --version && pip --version
 
-# Trouver le requirements.txt et installer les dépendances
-RUN REQUIREMENTS_FILE=$(find ComfyUI/ -name "requirements.txt" -type f | head -1) && \
-    echo "Installing dependencies from: $REQUIREMENTS_FILE" && \
-    pip install --no-cache-dir -r "$REQUIREMENTS_FILE" 2>&1 | tee pip_install.log || \
-    (echo "PIP INSTALL FAILED. LOG CONTENTS:" && cat pip_install.log && exit 1)
+# Installer les dépendances de base pour ComfyUI (sans requirements.txt)
+RUN pip install --no-cache-dir \
+    torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121 \
+    aiohttp \
+    pillow \
+    numpy \
+    scipy \
+    opencv-python \
+    pyyaml \
+    requests \
+    safetensors \
+    transformers \
+    accelerate \
+    diffusers
 
-# Installer torch avec CUDA 12.1
-RUN pip install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
+# Installer ComfyUI directement depuis le repository officiel
+RUN pip install --no-cache-dir \
+    git+https://github.com/comfyanonymous/ComfyUI.git
 
-# Installer les dépendances des nodes custom (RES4LYF)
-RUN if [ -f "ComfyUI/custom_nodes/RES4LYF/requirements.txt" ]; then \
-    echo "Installing RES4LYF dependencies..." && \
-    pip install --no-cache-dir -r ComfyUI/custom_nodes/RES4LYF/requirements.txt; \
-    else \
-    echo "RES4LYF requirements.txt not found, searching in custom nodes..."; \
-    CUSTOM_REQ=$(find ComfyUI/custom_nodes/ -name "requirements.txt" -type f); \
-    if [ -n "$CUSTOM_REQ" ]; then \
-        echo "Found custom node requirements: $CUSTOM_REQ"; \
-        for req in $CUSTOM_REQ; do \
-        echo "Installing from $req"; \
-        pip install --no-cache-dir -r "$req"; \
-        done; \
-    fi; \
+# Installer les dépendances des nodes custom (RES4LYF et autres)
+RUN if [ -d "ComfyUI/custom_nodes" ]; then \
+    echo "Recherche des requirements.txt dans les custom_nodes..." && \
+    find ComfyUI/custom_nodes/ -name "requirements.txt" -type f | while read file; do \
+        echo "Installation des dépendances depuis $file" && \
+        pip install --no-cache-dir -r "$file" || echo "Échec de l'installation pour $file, continuation..."; \
+    done; \
     fi
+
+# Installer manuellement les dépendances courantes pour les nodes custom
+RUN pip install --no-cache-dir \
+    insightface \
+    onnxruntime \
+    opencv-python-headless \
+    scikit-image \
+    imageio \
+    imageio-ffmpeg
 
 # Installer le SDK RunPod
 RUN pip install --no-cache-dir runpod
