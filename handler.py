@@ -9,8 +9,10 @@ from rp_handler import run_workflow
 COMFYUI_PATH = os.getenv('COMFYUI_PATH', '/home/comfyuser/ComfyUI')
 sys.path.append(COMFYUI_PATH)
 
-# Charger les modules de ComfyUI
 def load_comfyui_modules():
+    """
+    Charge les modules de ComfyUI dynamiquement.
+    """
     try:
         # Essayer d'importer depuis le chemin standard
         from comfy_worker import ComfyWorker
