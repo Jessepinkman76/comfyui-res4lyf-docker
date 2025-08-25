@@ -1,0 +1,9 @@
+# Dépendances RunPod et gestion d'images
+runpod>=0.10.0
+aiohttp>=3.9.0
+Pillow>=10.0.0
+base64io>=1.0.0
+
+# Dépendances pour nodes custom (ajuster selon besoins)
+# Ex: pour RES4LYF ou autres nodes
+git+https://github.com/jalberty2018/run-comfyui-wan.git
