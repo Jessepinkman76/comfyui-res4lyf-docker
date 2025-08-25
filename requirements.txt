@@ -1,9 +1,19 @@
-# Dépendances RunPod et gestion d'images
-runpod>=0.10.0
-aiohttp>=3.9.0
-Pillow>=10.0.0
-base64io>=1.0.0
-
-# Dépendances pour nodes custom (ajuster selon besoins)
-# Ex: pour RES4LYF ou autres nodes
-git+https://github.com/jalberty2018/run-comfyui-wan.git
+# Fichier requirements.txt pour les dépendances manquantes
+git+https://github.com/comfyanonymous/ComfyUI.git
+aiohttp==3.9.0
+pillow==10.0.0
+numpy==1.24.3
+scipy==1.10.1
+pyyaml==6.0.1
+requests==2.31.0
+safetensors==0.4.1
+transformers==4.35.2
+accelerate==0.24.1
+diffusers==0.25.0
+opencv-python-headless==4.8.1.78
+insightface==0.7.3
+onnxruntime==1.16.3
+scikit-image==0.22.0
+imageio==2.31.5
+imageio-ffmpeg==0.4.9
+runpod==0.10.0
