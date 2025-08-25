@@ -1,62 +1,67 @@
 import runpod
-from runpod import RunPodLogger
-import requests
-import time
-import json
+import importlib.util
+import sys
+import os
+import asyncio
+from rp_handler import run_workflow
 
-# Configuration du logger
-log = RunPodLogger()
+# Configurer le chemin de ComfyUI
+COMFYUI_PATH = os.getenv('COMFYUI_PATH', '/home/comfyuser/ComfyUI')
+sys.path.append(COMFYUI_PATH)
+
+# Charger les modules de ComfyUI
+def load_comfyui_modules():
+    try:
+        from comfy_worker import ComfyWorker
+        return ComfyWorker
+    except ImportError:
+        # Fallback si le module n'est pas trouvé
+        spec = importlib.util.spec_from_file_location("comfy_worker", 
+                    os.path.join(COMFYUI_PATH, "comfy_worker.py"))
+        if spec and spec.loader:
+            comfy_worker = importlib.util.module_from_spec(spec)
+            sys.modules["comfy_worker"] = comfy_worker
+            spec.loader.exec_module(comfy_worker)
+            return comfy_worker.ComfyWorker
+        else:
+            raise Exception("ComfyWorker module not found")
+
+# Initialiser le worker ComfyUI
+try:
+    ComfyWorker = load_comfyui_modules()
+    comfy_worker = ComfyWorker()
+except Exception as e:
+    print(f"Error initializing ComfyWorker: {e}")
+    comfy_worker = None
 
 def handler(job):
     """
-    Handler principal pour traiter les jobs RunPod
+    Gère les jobs RunPod.
     """
     try:
-        job_input = job['input']
+        job_input = job.get('input', {})
         workflow = job_input.get('workflow', {})
         
-        log.info("Traitement du workflow ComfyUI")
+        if not workflow:
+            return {"error": "No workflow provided in input"}
         
-        # Envoyer le workflow à ComfyUI
-        response = requests.post(
-            "http://localhost:8188/prompt",
-            json={"prompt": workflow},
-            timeout=30
-        )
-        response.raise_for_status()
+        if not comfy_worker:
+            return {"error": "ComfyUI worker not initialized"}
         
-        prompt_id = response.json()["prompt_id"]
-        log.info(f"Prompt ID: {prompt_id}")
+        # Exécuter le workflow
+        results = run_workflow(comfy_worker, workflow)
         
-        # Attendre la completion
-        max_attempts = 300
-        for attempt in range(max_attempts):
-            time.sleep(1)
-            
-            history_response = requests.get("http://localhost:8188/history")
-            history_response.raise_for_status()
-            
-            history = history_response.json()
-            if prompt_id in history:
-                log.info("Traitement terminé avec succès")
-                return {
-                    "status": "success",
-                    "prompt_id": prompt_id,
-                    "result": history[prompt_id]
-                }
+        return {
+            "status": "success",
+            "output": results
+        }
         
-        return {"error": "Timeout: Le traitement a pris trop de temps"}
-        
-    except requests.exceptions.RequestException as e:
-        log.error(f"Erreur de connexion: {str(e)}")
-        return {"error": f"Erreur de connexion: {str(e)}"}
-    except json.JSONDecodeError as e:
-        log.error(f"Erreur JSON: {str(e)}")
-        return {"error": f"Erreur JSON: {str(e)}"}
     except Exception as e:
-        log.error(f"Erreur inattendue: {str(e)}")
-        return {"error": f"Erreur inattendue: {str(e)}"}
+        return {
+            "status": "error",
+            "message": str(e)
+        }
 
-# Démarrer le serveur RunPod
+# Démarrer le service RunPod
 if __name__ == "__main__":
     runpod.serverless.start({"handler": handler})
