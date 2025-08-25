@@ -1,21 +1,34 @@
 #!/bin/bash
-# custom_start.sh
 
-# Démarrer les services originaux de l'image
-echo "Démarrage des services originaux..."
-/start.sh &
+# Définir les chemins
+COMFYUI_PATH="/home/comfyuser/ComfyUI"
+MODEL_PATH="/runpod-volume/models"
 
-# Attendre que ComfyUI soit prêt
-echo "Attente du démarrage de ComfyUI..."
-for i in {1..30}; do
-    if curl -s http://127.0.0.1:8188 >/dev/null; then
-        echo "ComfyUI est démarré et accessible"
-        break
+# Configurer les paths des modèles si le volume est monté
+if [ -d "$MODEL_PATH" ]; then
+    echo "Volume detected. Configuring model paths..."
+    export MODEL_PATH_ENV="$MODEL_PATH"
+    # Copier la configuration si nécessaire
+    if [ -f "extra_model_paths.yaml" ]; then
+        cp extra_model_paths.yaml "$COMFYUI_PATH/extra_model_paths.yaml"
     fi
-    echo "Tentative $i/30 - ComfyUI n'est pas encore prêt"
-    sleep 2
-done
+else
+    echo "No volume detected. Using default model paths."
+fi
+
+# Démarrer l'API ComfyUI en arrière-plan si nécessaire
+if [ "$SERVE_API_LOCALLY" = "true" ]; then
+    echo "Starting ComfyUI API locally..."
+    python3 "$COMFYUI_PATH/main.py" &
+    COMFY_PID=$!
+    sleep 5
+fi
 
 # Démarrer le handler RunPod
-echo "Démarrage du handler RunPod..."
-exec python -u /app/handler.py
+echo "Starting RunPod handler..."
+python3 handler.py
+
+# Arrêter ComfyUI si nécessaire
+if [ "$SERVE_API_LOCALLY" = "true" ]; then
+    kill $COMFY_PID
+fi
