@@ -1,0 +1,10 @@
+model_path:
+  base_dir: /runpod-volume/models
+  checkpoints: /runpod-volume/models/checkpoints
+  vae: /runpod-volume/models/vae
+  loras: /runpod-volume/models/loras
+  upscale_models: /runpod-volume/models/upscale_models
+  controlnet: /runpod-volume/models/controlnet
+  embeddings: /runpod-volume/models/embeddings
+  hypernetworks: /runpod-volume/models/hypernetworks
+  custom_nodes: /runpod-volume/models/custom_nodes
