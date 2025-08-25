@@ -1,14 +1,25 @@
-# Force l’arch x86_64 (important si build sur Mac M1/M2)
-FROM --platform=linux/amd64 nvidia/cuda:12.1.1-cudnn-runtime-ubuntu22.04
+# Utiliser une image de base avec CUDA 12.1
+FROM nvidia/cuda:12.1.1-devel-ubuntu22.04
 
-ARG DEBIAN_FRONTEND=noninteractive
-
-# Dépendances système
+# Installer les dépendances système
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-      git python3 python3-venv python3-pip \
-      wget curl ca-certificates \
-      libgl1 libglib2.0-0 libsm6 libxrender1 libxext6 \
+    apt-get install -y \
+    git \
+    python3 \
+    python3-pip \
+    python3-venv \
+    wget \
+    curl \
+    libgl1 \
+    libglib2.0-0 \
+    libsm6 \
+    libxrender1 \
+    libxext6 \
+    build-essential \
+    libssl-dev \
+    libffi-dev \
+    python3-dev \
+    && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
 # Créer un utilisateur non-root
@@ -16,57 +27,80 @@ RUN useradd -m -u 1000 -s /bin/bash comfyuser
 USER comfyuser
 WORKDIR /home/comfyuser
 
-# Créer un venv utilisateur
-RUN python3 -m venv .venv
-ENV PATH="/home/comfyuser/.venv/bin:${PATH}" \
-    PIP_NO_INPUT=1 \
-    PIP_PREFER_BINARY=1 \
-    PYTHONUNBUFFERED=1
-
-# Mettre pip à jour
+# Configurer l'environnement Python
+ENV PATH="/home/comfyuser/.local/bin:$PATH"
 RUN pip install --upgrade pip setuptools wheel
 
-# Installer PyTorch cu121 (versions cohérentes)
-RUN pip install --no-cache-dir \
-    --index-url https://download.pytorch.org/whl/cu121 \
-    "torch==2.4.0+cu121" "torchvision==0.19.0+cu121" "torchaudio==2.4.0+cu121"
+# Afficher les versions de Python et pip pour le debug
+RUN python3 --version && pip --version
 
-# Dépendances Python (headless pour OpenCV)
+# Installer torch avec CUDA 12.1 en premier (version compatible)
 RUN pip install --no-cache-dir \
-    aiohttp pillow numpy scipy opencv-python-headless pyyaml requests \
-    safetensors transformers accelerate diffusers websocket-client runpod
+    torch==2.0.1+cu118 \
+    torchvision==0.15.2+cu118 \
+    torchaudio==2.0.2+cu118 \
+    --extra-index-url https://download.pytorch.org/whl/cu118
 
-# Cloner tes sources (jalberty2018 / custom nodes)
+# Installer les dépendances de base une par une avec gestion d'erreurs
+RUN pip install --no-cache-dir aiohttp && \
+    pip install --no-cache-dir pillow && \
+    pip install --no-cache-dir numpy && \
+    pip install --no-cache-dir scipy && \
+    pip install --no-cache-dir pyyaml && \
+    pip install --no-cache-dir requests && \
+    pip install --no-cache-dir safetensors && \
+    pip install --no-cache-dir transformers && \
+    pip install --no-cache-dir accelerate && \
+    pip install --no-cache-dir diffusers
+
+# Installer opencv-python-headless au lieu de opencv-python (moins de dépendances)
+RUN pip install --no-cache-dir opencv-python-headless
+
+# Cloner ComfyUI et les nodes custom APRÈS l'installation des dépendances
 RUN git clone https://github.com/jalberty2018/run-comfyui-wan.git ComfyUI
 
-# (Option) Installer les requirements.txt des custom_nodes trouvés
+# Afficher la structure du repository pour debug
+RUN echo "Structure du repository ComfyUI:" && \
+    find ComfyUI/ -maxdepth 3 -type d -print
+
+# Installer ComfyUI depuis le repository officiel
+RUN pip install --no-cache-dir \
+    git+https://github.com/comfyanonymous/ComfyUI.git
+
+# Installer les dépendances des nodes custom
 RUN if [ -d "ComfyUI/custom_nodes" ]; then \
-      echo "Recherche des requirements.txt dans les custom_nodes..." && \
-      find ComfyUI/custom_nodes/ -name "requirements.txt" -type f | while read file; do \
-        echo "Installation des dépendances depuis $file" && \
-        pip install --no-cache-dir -r "$file" || echo "Échec pour $file, on continue..."; \
-      done; \
+    echo "Installation des dépendances pour les nodes custom..." && \
+    find ComfyUI/custom_nodes/ -name "requirements.txt" -type f | while read file; do \
+        echo "Installation depuis $file" && \
+        pip install --no-cache-dir -r "$file" || echo "Échec de l'installation pour $file, continuation..."; \
+    done; \
     fi
 
-# Évite le doublet opencv-python et opencv-python-headless
-# (Si un requirements.txt installe opencv-python, au besoin le désinstaller:)
-# RUN pip uninstall -y opencv-python || true
+# Installer manuellement les dépendances courantes pour les nodes custom
+RUN pip install --no-cache-dir \
+    insightface \
+    onnxruntime \
+    scikit-image \
+    imageio \
+    imageio-ffmpeg
 
-# Copier handler/start/config
-COPY --chown=comfyuser:comfyuser handler.py /home/comfyuser/handler.py
-COPY --chown=comfyuser:comfyuser start.sh /home/comfyuser/start.sh
-# Place extra_model_paths.yaml à la racine ComfyUI (là où ComfyUI le lit)
-COPY --chown=comfyuser:comfyuser extra_model_paths.yaml /home/comfyuser/ComfyUI/extra_model_paths.yaml
+# Installer le SDK RunPod
+RUN pip install --no-cache-dir runpod
 
-RUN chmod +x /home/comfyuser/start.sh
+# Copier les fichiers de configuration RunPod
+COPY --chown=comfyuser:comfyuser handler.py .
+COPY --chown=comfyuser:comfyuser rp_handler.py .
+COPY --chown=comfyuser:comfyuser start.sh .
+COPY --chown=comfyuser:comfyuser extra_model_paths.yaml .
 
-# Variables d’environnement
-ENV PYTHONPATH=/home/comfyuser/ComfyUI \
-    MODEL_PATH=/runpod-volume/models \
-    COMFYUI_PATH=/home/comfyuser/ComfyUI \
-    COMFY_PORT=8188 \
-    SERVE_API_LOCALLY=false
+# Configurer les variables d'environnement
+ENV PYTHONPATH=/home/comfyuser/ComfyUI
+ENV MODEL_PATH=/runpod-volume/models
+ENV COMFYUI_PATH=/home/comfyuser/ComfyUI
+ENV SERVE_API_LOCALLY=false
 
+# Exposer le port
 EXPOSE 8188
 
-CMD ["/home/comfyuser/start.sh"]
+# Script de démarrage
+CMD ["./start.sh"]
