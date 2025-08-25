@@ -16,16 +16,24 @@ else
     echo "No volume detected. Using default model paths."
 fi
 
+# Vérifier que ComfyUI existe
+if [ ! -d "$COMFYUI_PATH" ]; then
+    echo "ERROR: ComfyUI directory not found at $COMFYUI_PATH"
+    exit 1
+fi
+
 # Démarrer l'API ComfyUI en arrière-plan si nécessaire
 if [ "$SERVE_API_LOCALLY" = "true" ]; then
     echo "Starting ComfyUI API locally..."
-    python3 "$COMFYUI_PATH/main.py" &
+    cd "$COMFYUI_PATH"
+    python3 main.py &
     COMFY_PID=$!
-    sleep 5
+    sleep 10
 fi
 
 # Démarrer le handler RunPod
 echo "Starting RunPod handler..."
+cd /home/comfyuser
 python3 handler.py
 
 # Arrêter ComfyUI si nécessaire
