@@ -1,9 +1,9 @@
-# Utiliser une image de base avec CUDA 12.1
-FROM nvidia/cuda:12.1.1-devel-ubuntu22.04
+# Utiliser une image de base avec Python 3.10 et CUDA
+FROM nvidia/cuda:12.1.1-runtime-ubuntu22.04
 
 # Installer les dépendances système
 RUN apt-get update && \
-    apt-get install -y \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y \
     git \
     python3 \
     python3-pip \
@@ -34,15 +34,11 @@ RUN pip install --upgrade pip setuptools wheel
 # Afficher les versions de Python et pip pour le debug
 RUN python3 --version && pip --version
 
-# Installer torch avec CUDA 12.1 en premier (version compatible)
-RUN pip install --no-cache-dir \
-    torch==2.0.1+cu118 \
-    torchvision==0.15.2+cu118 \
-    torchaudio==2.0.2+cu118 \
-    --extra-index-url https://download.pytorch.org/whl/cu118
-
 # Installer les dépendances de base une par une avec gestion d'erreurs
-RUN pip install --no-cache-dir aiohttp && \
+RUN pip install --no-cache-dir \
+    torch==2.0.1 torchvision==0.15.2 torchaudio==2.0.2 \
+    --index-url https://download.pytorch.org/whl/cu118 && \
+    pip install --no-cache-dir aiohttp && \
     pip install --no-cache-dir pillow && \
     pip install --no-cache-dir numpy && \
     pip install --no-cache-dir scipy && \
@@ -51,25 +47,22 @@ RUN pip install --no-cache-dir aiohttp && \
     pip install --no-cache-dir safetensors && \
     pip install --no-cache-dir transformers && \
     pip install --no-cache-dir accelerate && \
-    pip install --no-cache-dir diffusers
+    pip install --no-cache-dir diffusers && \
+    pip install --no-cache-dir opencv-python-headless
 
-# Installer opencv-python-headless au lieu de opencv-python (moins de dépendances)
-RUN pip install --no-cache-dir opencv-python-headless
+# Cloner ComfyUI depuis le dépôt officiel (version stable)
+RUN git clone https://github.com/comfyanonymous/ComfyUI.git
 
-# Cloner ComfyUI et les nodes custom APRÈS l'installation des dépendances
-RUN git clone https://github.com/jalberty2018/run-comfyui-wan.git ComfyUI
+# Cloner le dépôt avec les nodes custom
+RUN git clone https://github.com/jalberty2018/run-comfyui-wan.git CustomNodes
 
-# Afficher la structure du repository pour debug
-RUN echo "Structure du repository ComfyUI:" && \
-    find ComfyUI/ -maxdepth 3 -type d -print
-
-# Installer ComfyUI depuis le repository officiel
-RUN pip install --no-cache-dir \
-    git+https://github.com/comfyanonymous/ComfyUI.git
+# Copier les nodes custom dans ComfyUI
+RUN cp -r CustomNodes/custom_nodes/* ComfyUI/custom_nodes/ && \
+    echo "Nodes custom copiés avec succès"
 
 # Installer les dépendances des nodes custom
 RUN if [ -d "ComfyUI/custom_nodes" ]; then \
-    echo "Installation des dépendances pour les nodes custom..." && \
+    echo "Recherche des requirements.txt dans les custom_nodes..." && \
     find ComfyUI/custom_nodes/ -name "requirements.txt" -type f | while read file; do \
         echo "Installation depuis $file" && \
         pip install --no-cache-dir -r "$file" || echo "Échec de l'installation pour $file, continuation..."; \
