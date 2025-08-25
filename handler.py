@@ -12,24 +12,34 @@ sys.path.append(COMFYUI_PATH)
 # Charger les modules de ComfyUI
 def load_comfyui_modules():
     try:
+        # Essayer d'importer depuis le chemin standard
         from comfy_worker import ComfyWorker
         return ComfyWorker
     except ImportError:
-        # Fallback si le module n'est pas trouvé
-        spec = importlib.util.spec_from_file_location("comfy_worker", 
-                    os.path.join(COMFYUI_PATH, "comfy_worker.py"))
-        if spec and spec.loader:
-            comfy_worker = importlib.util.module_from_spec(spec)
-            sys.modules["comfy_worker"] = comfy_worker
-            spec.loader.exec_module(comfy_worker)
-            return comfy_worker.ComfyWorker
-        else:
-            raise Exception("ComfyWorker module not found")
+        try:
+            # Fallback: essayer de charger depuis le fichier
+            spec = importlib.util.spec_from_file_location(
+                "comfy_worker", 
+                os.path.join(COMFYUI_PATH, "comfy_worker.py")
+            )
+            if spec and spec.loader:
+                comfy_worker = importlib.util.module_from_spec(spec)
+                sys.modules["comfy_worker"] = comfy_worker
+                spec.loader.exec_module(comfy_worker)
+                return comfy_worker.ComfyWorker
+        except Exception as e:
+            print(f"Error loading ComfyWorker: {e}")
+            return None
 
 # Initialiser le worker ComfyUI
 try:
     ComfyWorker = load_comfyui_modules()
-    comfy_worker = ComfyWorker()
+    if ComfyWorker:
+        comfy_worker = ComfyWorker()
+        print("ComfyUI worker initialized successfully")
+    else:
+        print("Failed to initialize ComfyWorker")
+        comfy_worker = None
 except Exception as e:
     print(f"Error initializing ComfyWorker: {e}")
     comfy_worker = None
@@ -59,9 +69,11 @@ def handler(job):
     except Exception as e:
         return {
             "status": "error",
-            "message": str(e)
+            "message": str(e),
+            "traceback": str(sys.exc_info())
         }
 
 # Démarrer le service RunPod
 if __name__ == "__main__":
+    print("Starting RunPod serverless handler...")
     runpod.serverless.start({"handler": handler})
