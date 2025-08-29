@@ -1,6 +1,3 @@
-docker pull runpod/worker-comfyui:5.4.0-base
-
-# Base Image
 FROM runpod/worker-comfyui:5.4.0-base AS base
 
 # Set Working Directory
