@@ -1,99 +1,51 @@
-# Utiliser une image de base avec Python 3.10 et CUDA
-FROM nvidia/cuda:12.1.1-runtime-ubuntu22.04
+docker pull runpod/worker-comfyui:5.4.0-base
 
-# Installer les dépendances système
-RUN apt-get update && \
-    DEBIAN_FRONTEND=noninteractive apt-get install -y \
-    git \
-    python3 \
-    python3-pip \
-    python3-venv \
-    wget \
-    curl \
-    libgl1 \
-    libglib2.0-0 \
-    libsm6 \
-    libxrender1 \
-    libxext6 \
-    build-essential \
-    libssl-dev \
-    libffi-dev \
-    python3-dev \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
+# Base Image
+FROM runpod/worker-comfyui:5.4.0-base AS base
 
-# Créer un utilisateur non-root
-RUN useradd -m -u 1000 -s /bin/bash comfyuser
-USER comfyuser
-WORKDIR /home/comfyuser
+# Set Working Directory
+WORKDIR /
 
-# Configurer l'environnement Python
-ENV PATH="/home/comfyuser/.local/bin:$PATH"
-RUN pip install --upgrade pip setuptools wheel
 
-# Afficher les versions de Python et pip pour le debug
-RUN python3 --version && pip --version
+# Install Required Packages
+RUN mkdir -p /ComfyUI/custom_nodes && \
+    cd /ComfyUI/custom_nodes && \
+    git clone https://github.com/ltdrdata/ComfyUI-Manager.git && \
+    git clone https://github.com/rgthree/rgthree-comfy.git && \
+	git clone https://github.com/welltop-cn/ComfyUI-TeaCache.git && \
+    git clone https://github.com/liusida/ComfyUI-Login.git && \
+    git clone https://github.com/Kosinkadink/ComfyUI-VideoHelperSuite.git && \
+    git clone https://github.com/kijai/ComfyUI-KJNodes.git && \
+    git clone https://github.com/Fannovel16/ComfyUI-Frame-Interpolation.git && \
+	git clone https://github.com/kijai/ComfyUI-WanVideoWrapper.git && \
+	git clone https://github.com/Flow-two/ComfyUI-WanStartEndFramesNative.git && \
+	git clone https://github.com/ShmuelRonen/ComfyUI-VideoUpscale_WithModel && \
+	git clone https://github.com/ClownsharkBatwing/RES4LYF.git && \
+	git clone https://github.com/BlenderNeko/ComfyUI_Noise.git && \
+	git clone https://github.com/ChenDarYen/ComfyUI-NAG.git && \
+	git clone https://github.com/vrgamegirl19/comfyui-vrgamedevgirl.git && \
+	git clone https://github.com/evanspearman/ComfyMath.git && \
+	git clone https://github.com/city96/ComfyUI-GGUF.git && \
+	git clone https://github.com/stduhpf/ComfyUI-WanMoeKSampler.git && \
+    git clone https://github.com/Azornes/Comfyui-Resolution-Master.git && \
+	git clone https://github.com/ssitu/ComfyUI_UltimateSDUpscale --recursive
 
-# Installer les dépendances de base une par une avec gestion d'erreurs
-RUN pip install --no-cache-dir \
-    torch==2.0.1 torchvision==0.15.2 torchaudio==2.0.2 \
-    --index-url https://download.pytorch.org/whl/cu118 && \
-    pip install --no-cache-dir aiohttp && \
-    pip install --no-cache-dir pillow && \
-    pip install --no-cache-dir numpy && \
-    pip install --no-cache-dir scipy && \
-    pip install --no-cache-dir pyyaml && \
-    pip install --no-cache-dir requests && \
-    pip install --no-cache-dir safetensors && \
-    pip install --no-cache-dir transformers && \
-    pip install --no-cache-dir accelerate && \
-    pip install --no-cache-dir diffusers && \
-    pip install --no-cache-dir opencv-python-headless
+# Install Dependencies
+RUN pip3 install --no-cache-dir diffusers psutil \
+    -r /ComfyUI/custom_nodes/ComfyUI-Login/requirements.txt \
+    -r /ComfyUI/custom_nodes/ComfyUI-VideoHelperSuite/requirements.txt \
+    -r /ComfyUI/custom_nodes/ComfyUI-KJNodes/requirements.txt \
+	-r /ComfyUI/custom_nodes/ComfyUI-TeaCache/requirements.txt \
+	-r /ComfyUI/custom_nodes/ComfyUI-WanVideoWrapper/requirements.txt \
+	-r /ComfyUI/custom_nodes/comfyui-vrgamedevgirl/requirements.txt \
+	-r /ComfyUI/custom_nodes/RES4LYF/requirements.txt \
+	-r /ComfyUI/custom_nodes/ComfyUI-GGUF/requirements.txt
 
-# Cloner ComfyUI depuis le dépôt officiel (version stable)
-RUN git clone https://github.com/comfyanonymous/ComfyUI.git
+# Set Workspace
+WORKDIR /workspace
 
-# Cloner le dépôt avec les nodes custom
-RUN git clone https://github.com/jalberty2018/run-comfyui-wan.git CustomNodes
+# Expose Necessary Ports
+EXPOSE 8188 9000
 
-# Copier les nodes custom dans ComfyUI
-RUN cp -r CustomNodes/custom_nodes/* ComfyUI/custom_nodes/ && \
-    echo "Nodes custom copiés avec succès"
-
-# Installer les dépendances des nodes custom
-RUN if [ -d "ComfyUI/custom_nodes" ]; then \
-    echo "Recherche des requirements.txt dans les custom_nodes..." && \
-    find ComfyUI/custom_nodes/ -name "requirements.txt" -type f | while read file; do \
-        echo "Installation depuis $file" && \
-        pip install --no-cache-dir -r "$file" || echo "Échec de l'installation pour $file, continuation..."; \
-    done; \
-    fi
-
-# Installer manuellement les dépendances courantes pour les nodes custom
-RUN pip install --no-cache-dir \
-    insightface \
-    onnxruntime \
-    scikit-image \
-    imageio \
-    imageio-ffmpeg
-
-# Installer le SDK RunPod
-RUN pip install --no-cache-dir runpod
-
-# Copier les fichiers de configuration RunPod
-COPY --chown=comfyuser:comfyuser handler.py .
-COPY --chown=comfyuser:comfyuser rp_handler.py .
-COPY --chown=comfyuser:comfyuser start.sh .
-COPY --chown=comfyuser:comfyuser extra_model_paths.yaml .
-
-# Configurer les variables d'environnement
-ENV PYTHONPATH=/home/comfyuser/ComfyUI
-ENV MODEL_PATH=/runpod-volume/models
-ENV COMFYUI_PATH=/home/comfyuser/ComfyUI
-ENV SERVE_API_LOCALLY=false
-
-# Exposer le port
-EXPOSE 8188
-
-# Script de démarrage
-CMD ["./start.sh"]
+# Start Server
+CMD [ "/start.sh" ]
